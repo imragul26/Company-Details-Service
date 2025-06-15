@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Message xmlns="http://company.com/employees"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+
+    <Header>
+        <requestId>REQ12345</requestId>
+        <timestamp>2025-06-14T20:00:00</timestamp>
+        <sourceSystem>HR_PORTAL</sourceSystem>
+    </Header>
+
+    <Footer>
+        <statusCode>200</statusCode>
+        <statusMessage>Success</statusMessage>
+    </Footer>
+
+    <Body>
+        <empId>1001</empId>
+        <firstName>Jane</firstName>
+        <lastName>Smith</lastName>
+        <email>jane.smith@example.com</email>
+        <phone>+911234567890</phone>
+        <dateOfBirth>1985-08-15</dateOfBirth>
+        <gender>Female</gender>
+        <hireDate>2010-06-01</hireDate>
+        <salary>95000.00</salary>
+        <bonus>5000.00</bonus>
+        <married>false</married>
+        <city>Bangalore</city>
+        <country>India</country>
+    </Body>
+
+</Message>

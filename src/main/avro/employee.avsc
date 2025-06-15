@@ -1,0 +1,77 @@
+{
+  "type": "record",
+  "name": "EmployeeDetails",
+  "namespace": "com.schemas",
+  "fields": [
+    {
+      "name": "employeeId",
+      "type": "int",
+      "default": 0
+    },
+    {
+      "name": "firstName",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "name": "lastName",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "name": "email",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "phoneNumber",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "dateOfBirth",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "gender",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "hireDate",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "salary",
+      "type": "double",
+      "default": 0.0
+    },
+    {
+      "name": "bonus",
+      "type": ["null", "double"],
+      "default": null
+    },
+    {
+      "name": "married",
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "name": "address",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "city",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "name": "country",
+      "type": "string",
+      "default": ""
+    }
+  ]
+}
