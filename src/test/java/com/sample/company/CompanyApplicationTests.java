@@ -68,4 +68,27 @@ class CompanyApplicationTests {
 
 	}
 
+	@Test
+	public void checkunitTestReports() throws Exception {
+		AdviceWith.adviceWith(this.camelContext, "activeMQToKafka", (r) -> {
+			r.replaceFromWith("direct:start");
+			r.weaveByToUri("jms:*").replace().to(this.dlq);
+			r.weaveByToUri("kafka:*").replace().to(this.kafka);
+		});
+		this.kafka.expectedMessageCount(1);
+		this.producerTemplate.sendBody("direct:start",
+				this.getClass().getClassLoader().getResourceAsStream("company.xml"));
+		EmployeeDetails avro = (EmployeeDetails) ((Exchange) this.kafka.getExchanges().get(0))
+				.getIn()
+				.getBody(EmployeeDetails.class);
+
+		assertEquals("Jane", avro.getFirstName());
+		assertEquals("Smith", avro.getLastName());
+		assertEquals("jane.smith@example.com", avro.getEmail());
+
+		this.kafka.assertIsSatisfied();
+		this.kafka.reset();
+
+	}
+
 }

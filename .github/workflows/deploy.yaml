@@ -41,3 +41,11 @@ jobs:
       run: |
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
         docker push -a $ECR_REGISTRY/$ECR_REPOSITORY
+    - name: Run Unit Tests and Generate Surefire Report
+      run: mvn test surefire-report:report
+
+    - name: Upload Surefire HTML Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: surefire-report
+        path: target/site/surefire-report.html
