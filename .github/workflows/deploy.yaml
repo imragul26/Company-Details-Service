@@ -44,11 +44,18 @@ jobs:
     - name: Run Unit Tests and Generate Surefire Report
       run: |
         mvn test surefire-report:report
-        # Create self-contained report in a single command
-        sed -i 's|href="\./|href="https://www.mojohaus.org/surefire/surefire-report/|g; s|src="\./|src="https://www.mojohaus.org/surefire/surefire-report/|g' target/site/surefire-report.html
 
-    - name: Upload Single HTML Report
+        # Create self-contained HTML in one command
+        sed -i 's|href="\./|href="|g; s|src="\./|src="|g; s|url(images/|url(|g; s|url(../images/|url(|g' target/site/surefire-report.html
+
+    - name: Zip Entire Site Folder
+      run: |
+        cd target/site
+        zip -r report.zip .
+        mv report.zip ../../
+
+    - name: Upload Zipped Report
       uses: actions/upload-artifact@v4
       with:
-         name: test-report
-         path: target/site/surefire-report.html
+        name: test-report
+        path: report.zip
