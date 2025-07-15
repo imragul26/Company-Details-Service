@@ -45,17 +45,13 @@ jobs:
       run: |
         mvn test surefire-report:report
 
-        # Create self-contained HTML in one command
-        sed -i 's|href="\./|href="|g; s|src="\./|src="|g; s|url(images/|url(|g; s|url(../images/|url(|g' target/site/surefire-report.html
-
-    - name: Zip Entire Site Folder
+    - name: Inline CSS and images into HTML
       run: |
-        cd target/site
-        zip -r report.zip .
-        mv report.zip ../../
+        npm install -g html-inline
+        html-inline target/site/surefire-report.html > target/site/surefire-report-inline.html
 
-    - name: Upload Zipped Report
+    - name: Upload Single HTML Report
       uses: actions/upload-artifact@v4
       with:
         name: test-report
-        path: report.zip
+        path: target/site/surefire-report-inline.html
