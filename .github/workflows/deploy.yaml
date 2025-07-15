@@ -42,10 +42,13 @@ jobs:
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
         docker push -a $ECR_REGISTRY/$ECR_REPOSITORY
     - name: Run Unit Tests and Generate Surefire Report
-      run: mvn test surefire-report:report
+      run: |
+        mvn test surefire-report:report
+        # Create self-contained report in a single command
+        sed -i 's|href="\./|href="https://www.mojohaus.org/surefire/surefire-report/|g; s|src="\./|src="https://www.mojohaus.org/surefire/surefire-report/|g' target/site/surefire-report.html
 
-    - name: Upload Surefire HTML Report
+    - name: Upload Single HTML Report
       uses: actions/upload-artifact@v4
       with:
-        name: surefire-report
-        path: target/site/surefire-report.html
+         name: test-report
+         path: target/site/surefire-report.html
