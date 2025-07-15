@@ -45,7 +45,7 @@ jobs:
       run: mvn test surefire-report:report
 
     - name: Upload Surefire HTML Report
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: surefire-report
         path: target/site/surefire-report.html
