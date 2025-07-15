@@ -1,0 +1,36 @@
+name: PR CI Test Report
+
+on:
+  pull_request:
+
+jobs:
+  test-report:
+    name: Build and Publish PR Test Report
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v2
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-south-1
+
+    - name: Run Unit Tests and Generate PR Test Report
+      id: test_report
+      run: |
+        PR_NUMBER="${{ github.event.pull_request.number }}"
+        TEST_REPORT_FILENAME="company-details-service-test-report-pr-${PR_NUMBER}.html"
+        echo "filename=$TEST_REPORT_FILENAME" >> $GITHUB_OUTPUT
+        mvn test surefire-report:report
+        npm install -g html-inline
+        html-inline target/site/surefire-report.html > target/site/$TEST_REPORT_FILENAME
+
+    - name: Upload PR Test Report (HTML)
+      if: success() || failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.test_report.outputs.filename }}
+        path: target/site/${{ steps.test_report.outputs.filename }}
