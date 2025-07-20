@@ -28,7 +28,7 @@ jobs:
       run: |
         chmod +x .github/scripts/generate-report.sh
         ./.github/scripts/generate-report.sh \
-          target/reports \
+          target/surefire-reports \
           surefire.html
         
     - name: Upload report

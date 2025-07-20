@@ -1,27 +1,44 @@
 #!/bin/bash
 
-# Professional HTML-Based Test Report Generator
+# Enhanced HTML Test Report Generator using simple XML parsing
 INPUT_DIR="$1"
 OUTPUT_FILE="$2"
 CURRENT_DATE=$(date '+%Y-%m-%d %H:%M:%S')
-STANDARD_REPORT="$INPUT_DIR/surefire.html"
 
-# Check if standard report exists
-if [ ! -f "$STANDARD_REPORT" ]; then
-    echo "Error: Standard report not found: $STANDARD_REPORT"
-    exit 1
+# Find and parse the first TEST-*.xml file for summary data
+SUREFIRE_XML=$(find "$INPUT_DIR" -name "TEST-*.xml" | head -1)
+
+# Initialize counts
+TOTAL_TESTS=0
+FAILURES=0
+ERRORS=0
+SKIPPED=0
+TIME=0
+
+# Simple XML parsing if file exists
+if [ -f "$SUREFIRE_XML" ]; then
+    # Extract attributes from testsuite tag
+    while read -r line; do
+        case $line in
+            *"testsuite"*)
+                TOTAL_TESTS=$(echo "$line" | grep -o 'tests="[0-9]*"' | cut -d'"' -f2)
+                FAILURES=$(echo "$line" | grep -o 'failures="[0-9]*"' | cut -d'"' -f2)
+                ERRORS=$(echo "$line" | grep -o 'errors="[0-9]*"' | cut -d'"' -f2)
+                SKIPPED=$(echo "$line" | grep -o 'skipped="[0-9]*"' | cut -d'"' -f2)
+                TIME=$(echo "$line" | grep -o 'time="[0-9.]*"' | cut -d'"' -f2)
+                break
+                ;;
+        esac
+    done < "$SUREFIRE_XML"
 fi
 
-# Extract body content from standard report
-REPORT_CONTENT=$(awk '/<main id="bodyColumn">/,/<\/main>/' "$STANDARD_REPORT" | sed '1d;$d')
-
-# Extract test results summary
-SUMMARY_TABLE=$(grep -A6 'Summary' "$STANDARD_REPORT" | grep -A5 '<table' | tail -n +2 | head -n 6)
-TOTAL_TESTS=$(echo "$SUMMARY_TABLE" | grep -A1 '<tr class="b">' | tail -1 | sed -e 's/<td>//g' -e 's/<\/td>//g' -e 's/^[[:space:]]*//')
-ERRORS=$(echo "$SUMMARY_TABLE" | grep -A1 '<tr class="b">' | tail -1 | awk -F'</?td>' '{print $4}')
-FAILURES=$(echo "$SUMMARY_TABLE" | grep -A1 '<tr class="b">' | tail -1 | awk -F'</?td>' '{print $6}')
-SKIPPED=$(echo "$SUMMARY_TABLE" | grep -A1 '<tr class="b">' | tail -1 | awk -F'</?td>' '{print $8}')
-PASSED=$((TOTAL_TESTS - ERRORS - FAILURES - SKIPPED))
+# Default values if parsing failed
+TOTAL_TESTS=${TOTAL_TESTS:-0}
+FAILURES=${FAILURES:-0}
+ERRORS=${ERRORS:-0}
+SKIPPED=${SKIPPED:-0}
+TIME=${TIME:-0}
+PASSED=$((TOTAL_TESTS - FAILURES - ERRORS - SKIPPED))
 
 # Generate status badge
 if [ "$FAILURES" -gt 0 ] || [ "$ERRORS" -gt 0 ]; then
@@ -229,91 +246,6 @@ cat > "$OUTPUT_FILE" <<EOF
             color: var(--text-secondary);
         }
         
-        .original-report {
-            background: var(--card-bg);
-            border-radius: 15px;
-            box-shadow: var(--shadow);
-            overflow: hidden;
-            margin-bottom: 40px;
-        }
-        
-        .report-content {
-            padding: 40px;
-        }
-        
-        /* Enhancements to original report */
-        .report-content .bodyContent {
-            padding: 0;
-        }
-        
-        .report-content h1 {
-            color: var(--header-bg);
-            font-size: 2.2rem;
-            margin-bottom: 25px;
-            padding-bottom: 15px;
-            border-bottom: 3px solid var(--accent);
-        }
-        
-        .report-content h2 {
-            color: var(--header-bg);
-            font-size: 1.8rem;
-            margin: 40px 0 25px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid var(--border);
-        }
-        
-        .report-content table {
-            width: 100%;
-            border-collapse: collapse;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-            margin: 25px 0;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        
-        .report-content th {
-            background-color: var(--header-bg);
-            color: var(--header-text);
-            text-align: left;
-            padding: 16px 20px;
-            font-weight: 600;
-            font-size: 1.1rem;
-        }
-        
-        .report-content td {
-            padding: 14px 20px;
-            border-bottom: 1px solid var(--border);
-        }
-        
-        .report-content tr:nth-child(even) {
-            background-color: #fcfdff;
-        }
-        
-        .report-content tr:hover {
-            background-color: #f5f9ff;
-        }
-        
-        /* Test case status indicators */
-        .test-passed {
-            color: var(--success);
-            font-weight: 600;
-        }
-        
-        .test-failed {
-            color: var(--danger);
-            font-weight: 600;
-        }
-        
-        .test-skipped {
-            color: var(--warning);
-            font-weight: 600;
-        }
-        
-        .test-error {
-            color: var(--danger);
-            font-weight: 600;
-        }
-        
         .report-footer {
             text-align: center;
             padding: 30px;
@@ -323,7 +255,6 @@ cat > "$OUTPUT_FILE" <<EOF
             margin-top: 50px;
         }
         
-        /* Animation for status cards */
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
@@ -360,18 +291,6 @@ cat > "$OUTPUT_FILE" <<EOF
                 padding: 10px 18px;
                 font-size: 0.9rem;
             }
-            
-            .report-content {
-                padding: 25px;
-            }
-            
-            .report-content h1 {
-                font-size: 1.8rem;
-            }
-            
-            .report-content h2 {
-                font-size: 1.5rem;
-            }
         }
     </style>
 </head>
@@ -380,7 +299,7 @@ cat > "$OUTPUT_FILE" <<EOF
         <div class="header-pattern"></div>
         <div class="header-content">
             <h1 class="report-title">Customer Service - Unit Test Report</h1>
-            <p class="report-subtitle">Comprehensive Test Execution Summary • $CURRENT_DATE</p>
+            <p class="report-subtitle">Test Execution Summary • $CURRENT_DATE</p>
             
             <div class="status-container">
                 <div class="status-card total-tests">
@@ -411,9 +330,6 @@ cat > "$OUTPUT_FILE" <<EOF
                    target="_blank">
                     API Documentation
                 </a>
-                <a href="#" class="action-btn">
-                    Download Report
-                </a>
             </div>
         </div>
     </header>
@@ -421,18 +337,11 @@ cat > "$OUTPUT_FILE" <<EOF
     <div class="report-container">
         <div class="test-summary">
             <div class="summary-header">
-                <h2 class="summary-title">Test Execution Summary</h2>
-                <div class="execution-time">Generated on: $CURRENT_DATE</div>
+                <h2 class="summary-title">Test Execution Details</h2>
+                <div class="execution-time">Total Duration: ${TIME}s</div>
             </div>
             <div class="summary-content">
-                <p>This report provides detailed results of the automated unit tests for the Customer Service API. The test suite covers core functionality including customer creation, retrieval, updates, and validation.</p>
-                <p>All tests were executed as part of the CI/CD pipeline with results captured in real-time.</p>
-            </div>
-        </div>
-        
-        <div class="original-report">
-            <div class="report-content">
-                $REPORT_CONTENT
+                <p>Unit test execution completed with the above results.</p>
             </div>
         </div>
     </div>
@@ -441,34 +350,6 @@ cat > "$OUTPUT_FILE" <<EOF
         <p>Customer Service Unit Test Report • Generated by CI/CD Pipeline</p>
         <p>Confidential - For internal use only</p>
     </footer>
-    
-    <script>
-        // Simple script to enhance the report
-        document.addEventListener('DOMContentLoaded', function() {
-            // Color code test results
-            const cells = document.querySelectorAll('td');
-            cells.forEach(cell => {
-                const text = cell.textContent.trim();
-                if (text.includes('FAILURE') || text.includes('Failure')) {
-                    cell.classList.add('test-failed');
-                } else if (text.includes('SUCCESS') || text.includes('Success')) {
-                    cell.classList.add('test-passed');
-                } else if (text.includes('SKIPPED') || text.includes('Skipped')) {
-                    cell.classList.add('test-skipped');
-                } else if (text.includes('ERROR') || text.includes('Error')) {
-                    cell.classList.add('test-error');
-                }
-            });
-            
-            // Add click handlers for test rows to show more details
-            const testRows = document.querySelectorAll('tr');
-            testRows.forEach(row => {
-                row.addEventListener('click', function() {
-                    this.classList.toggle('expanded');
-                });
-            });
-        });
-    </script>
 </body>
 </html>
 EOF
