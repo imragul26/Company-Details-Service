@@ -29,11 +29,11 @@ jobs:
         chmod +x .github/scripts/generate-report.sh
         ./.github/scripts/generate-report.sh \
           target/surefire-reports \
-          surefire.html
+          target/reports/surefire.html
         
     - name: Upload report
       uses: actions/upload-artifact@v4
       with:
         name: unit-test-report
-        path: surefire.html
+        path: target/reports/surefire.html
         retention-days: 7
