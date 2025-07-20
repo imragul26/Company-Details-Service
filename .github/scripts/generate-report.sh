@@ -19,7 +19,7 @@ cat > "$HEADER_FILE" <<EOF
 EOF
 
 # Process original report
-sed 's/Surefire Report/Unit Test Report/g' "${INPUT_DIR}/surefire-report.html" > "$CONTENT_FILE"
+sed 's/Surefire Report/Unit Test Report/g' "${INPUT_DIR}/surefire.html" > "$CONTENT_FILE"
 
 # Insert custom header at the beginning of the body
 awk '
