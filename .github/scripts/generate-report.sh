@@ -1,50 +1,35 @@
 #!/bin/bash
 
-# Enhanced HTML-Based Test Report Generator for GitHub Actions
+# Professional HTML-Based Test Report Generator
 INPUT_DIR="$1"
 OUTPUT_FILE="$2"
 CURRENT_DATE=$(date '+%Y-%m-%d %H:%M:%S')
 STANDARD_REPORT="$INPUT_DIR/surefire.html"
-REPORT_DIR=$(dirname "$OUTPUT_FILE")
-
-# Create output directory if needed
-mkdir -p "$REPORT_DIR"
 
 # Check if standard report exists
 if [ ! -f "$STANDARD_REPORT" ]; then
-    echo "::error::Standard report not found: $STANDARD_REPORT"
+    echo "Error: Standard report not found: $STANDARD_REPORT"
     exit 1
 fi
 
-# Extract and clean report content
-REPORT_CONTENT=$(awk '/<body>/,/<\/body>/' "$STANDARD_REPORT" | sed '1d;$d' | \
-    sed 's/<body[^>]*>//g; s/<\/body>//g; s/<html[^>]*>//g; s/<\/html>//g')
+# Extract body content from standard report
+REPORT_CONTENT=$(awk '/<main id="bodyColumn">/,/<\/main>/' "$STANDARD_REPORT" | sed '1d;$d')
 
-# Count test results
-TOTAL_TESTS=$(grep -oP '(?<=tests=")[^"]*' "$STANDARD_REPORT" || echo "0")
-FAILED_TESTS=$(grep -oP '(?<=failures=")[^"]*' "$STANDARD_REPORT" || echo "0")
-ERROR_TESTS=$(grep -oP '(?<=errors=")[^"]*' "$STANDARD_REPORT" || echo "0")
-SKIPPED_TESTS=$(grep -oP '(?<=skipped=")[^"]*' "$STANDARD_REPORT" || echo "0")
-PASSED_TESTS=$((TOTAL_TESTS - FAILED_TESTS - ERROR_TESTS - SKIPPED_TESTS))
+# Extract test results summary
+SUMMARY_TABLE=$(grep -A6 'Summary' "$STANDARD_REPORT" | grep -A5 '<table' | tail -n +2 | head -n 6)
+TOTAL_TESTS=$(echo "$SUMMARY_TABLE" | grep -A1 '<tr class="b">' | tail -1 | sed -e 's/<td>//g' -e 's/<\/td>//g' -e 's/^[[:space:]]*//')
+ERRORS=$(echo "$SUMMARY_TABLE" | grep -A1 '<tr class="b">' | tail -1 | awk -F'</?td>' '{print $4}')
+FAILURES=$(echo "$SUMMARY_TABLE" | grep -A1 '<tr class="b">' | tail -1 | awk -F'</?td>' '{print $6}')
+SKIPPED=$(echo "$SUMMARY_TABLE" | grep -A1 '<tr class="b">' | tail -1 | awk -F'</?td>' '{print $8}')
+PASSED=$((TOTAL_TESTS - ERRORS - FAILURES - SKIPPED))
 
 # Generate status badge
-if [ "$FAILED_TESTS" -gt 0 ] || [ "$ERROR_TESTS" -gt 0 ]; then
+if [ "$FAILURES" -gt 0 ] || [ "$ERRORS" -gt 0 ]; then
     STATUS_BADGE="<span class='badge failed'>FAILED</span>"
     STATUS_COLOR="#e63946"
-    GH_STATUS="failure"
 else
     STATUS_BADGE="<span class='badge passed'>PASSED</span>"
-    STATUS_COLOR="#2a9d8f"
-    GH_STATUS="success"
-fi
-
-# Generate GitHub Actions summary
-if [ -n "$GITHUB_STEP_SUMMARY" ]; then
-    echo "### Test Execution Summary" >> $GITHUB_STEP_SUMMARY
-    echo "| Result | Total | Passed | Failed | Skipped |" >> $GITHUB_STEP_SUMMARY
-    echo "|--------|-------|--------|--------|---------|" >> $GITHUB_STEP_SUMMARY
-    echo "| **$GH_STATUS** | $TOTAL_TESTS | $PASSED_TESTS | $FAILED_TESTS | $SKIPPED_TESTS |" >> $GITHUB_STEP_SUMMARY
-    echo "[View Full Report]($OUTPUT_FILE)" >> $GITHUB_STEP_SUMMARY
+    STATUS_COLOR="#4CAF50"
 fi
 
 # Generate professional HTML report
@@ -54,23 +39,20 @@ cat > "$OUTPUT_FILE" <<EOF
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Customer Service - Test Report</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>Customer Service - Unit Test Report</title>
     <style>
         :root {
-            --header-bg: #1a1a2e;
+            --header-bg: #060667;
             --header-text: #ffffff;
-            --accent: #4cc9f0;
+            --accent: #b8ff4e;
             --card-bg: #ffffff;
-            --text-primary: #2b2d42;
-            --text-secondary: #8d99ae;
-            --border: #edf2f4;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --border: #e0e0e0;
             --shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            --success: #2a9d8f;
-            --warning: #f4a261;
+            --success: #4CAF50;
+            --warning: #FFC107;
             --danger: #e63946;
-            --info: #4cc9f0;
         }
         
         * {
@@ -87,11 +69,12 @@ cat > "$OUTPUT_FILE" <<EOF
         }
         
         .report-header {
-            background: linear-gradient(135deg, var(--header-bg) 0%, #16213e 100%);
+            background: linear-gradient(135deg, var(--header-bg) 0%, #0a0a8a 100%);
             color: var(--header-text);
             padding: 40px 0;
             position: relative;
             overflow: hidden;
+            text-align: center;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
         
@@ -114,61 +97,48 @@ cat > "$OUTPUT_FILE" <<EOF
             padding: 0 30px;
             position: relative;
             z-index: 2;
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .title-section {
-            flex: 1;
-            min-width: 300px;
         }
         
         .report-title {
-            font-size: 2.3rem;
+            font-size: 2.8rem;
             font-weight: 700;
             margin-bottom: 10px;
+            letter-spacing: 0.5px;
         }
         
         .report-subtitle {
-            font-size: 1.1rem;
+            font-size: 1.3rem;
             opacity: 0.9;
-            max-width: 600px;
-        }
-        
-        .status-section {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
+            max-width: 800px;
+            margin: 0 auto 20px;
         }
         
         .status-container {
             display: flex;
-            gap: 15px;
-            margin: 15px 0;
+            justify-content: center;
+            gap: 30px;
+            margin: 30px 0;
             flex-wrap: wrap;
-            justify-content: flex-end;
         }
         
         .status-card {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.15);
             border-radius: 10px;
-            padding: 15px 20px;
-            min-width: 100px;
+            padding: 20px 30px;
+            min-width: 180px;
             text-align: center;
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(5px);
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
         
         .status-card h3 {
-            font-size: 0.9rem;
-            margin-bottom: 8px;
-            color: rgba(255, 255, 255, 0.8);
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.85);
+            margin-bottom: 10px;
         }
         
         .status-card .value {
-            font-size: 1.8rem;
+            font-size: 2.2rem;
             font-weight: 700;
         }
         
@@ -183,82 +153,80 @@ cat > "$OUTPUT_FILE" <<EOF
             font-weight: 600;
             font-size: 1.1rem;
             letter-spacing: 0.5px;
-            background-color: $STATUS_COLOR;
-            color: white;
             margin-top: 10px;
             display: inline-block;
         }
         
+        .badge.passed {
+            background-color: var(--success);
+            color: white;
+        }
+        
+        .badge.failed {
+            background-color: var(--danger);
+            color: white;
+        }
+        
         .report-actions {
             display: flex;
-            gap: 15px;
-            margin-top: 20px;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 30px;
         }
         
         .action-btn {
-            background: rgba(76, 201, 240, 0.2);
+            background: rgba(184, 255, 78, 0.2);
             color: var(--header-text);
-            border: 1px solid rgba(76, 201, 240, 0.4);
-            padding: 10px 20px;
+            border: 1px solid rgba(184, 255, 78, 0.4);
+            padding: 12px 24px;
             border-radius: 50px;
             text-decoration: none;
             font-weight: 600;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
             transition: all 0.3s ease;
-            font-size: 0.9rem;
+            font-size: 1rem;
         }
         
         .action-btn:hover {
-            background: rgba(76, 201, 240, 0.3);
+            background: rgba(184, 255, 78, 0.3);
             transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
         }
         
         .report-container {
             max-width: 1200px;
-            margin: 40px auto;
+            margin: 50px auto;
             padding: 0 30px;
         }
         
-        .dashboard {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 25px;
-            margin-bottom: 40px;
-        }
-        
-        .chart-container {
+        .test-summary {
             background: var(--card-bg);
             border-radius: 15px;
             box-shadow: var(--shadow);
-            padding: 25px;
-            height: 300px;
+            padding: 30px;
+            margin-bottom: 30px;
         }
         
-        .summary-container {
-            background: var(--card-bg);
-            border-radius: 15px;
-            box-shadow: var(--shadow);
-            padding: 25px;
+        .summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border);
         }
         
         .summary-title {
-            font-size: 1.4rem;
+            font-size: 1.5rem;
             color: var(--text-primary);
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid var(--border);
+            font-weight: 600;
         }
         
         .summary-content {
             line-height: 1.8;
             color: var(--text-secondary);
-        }
-        
-        .summary-highlight {
-            color: var(--text-primary);
-            font-weight: 600;
         }
         
         .original-report {
@@ -270,8 +238,7 @@ cat > "$OUTPUT_FILE" <<EOF
         }
         
         .report-content {
-            padding: 30px;
-            overflow-x: auto;
+            padding: 40px;
         }
         
         /* Enhancements to original report */
@@ -281,7 +248,7 @@ cat > "$OUTPUT_FILE" <<EOF
         
         .report-content h1 {
             color: var(--header-bg);
-            font-size: 2rem;
+            font-size: 2.2rem;
             margin-bottom: 25px;
             padding-bottom: 15px;
             border-bottom: 3px solid var(--accent);
@@ -289,8 +256,8 @@ cat > "$OUTPUT_FILE" <<EOF
         
         .report-content h2 {
             color: var(--header-bg);
-            font-size: 1.6rem;
-            margin: 35px 0 20px;
+            font-size: 1.8rem;
+            margin: 40px 0 25px;
             padding-bottom: 10px;
             border-bottom: 2px solid var(--border);
         }
@@ -299,22 +266,22 @@ cat > "$OUTPUT_FILE" <<EOF
             width: 100%;
             border-collapse: collapse;
             box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-            margin: 20px 0;
+            margin: 25px 0;
             border-radius: 8px;
             overflow: hidden;
-            min-width: 800px;
         }
         
         .report-content th {
             background-color: var(--header-bg);
             color: var(--header-text);
             text-align: left;
-            padding: 14px 18px;
+            padding: 16px 20px;
             font-weight: 600;
+            font-size: 1.1rem;
         }
         
         .report-content td {
-            padding: 12px 18px;
+            padding: 14px 20px;
             border-bottom: 1px solid var(--border);
         }
         
@@ -347,71 +314,62 @@ cat > "$OUTPUT_FILE" <<EOF
             font-weight: 600;
         }
         
-        /* Footer styles */
         .report-footer {
             text-align: center;
             padding: 30px;
             color: var(--text-secondary);
-            font-size: 0.9rem;
-            background-color: var(--card-bg);
+            font-size: 0.95rem;
             border-top: 1px solid var(--border);
             margin-top: 50px;
         }
         
-        /* GitHub banner */
-        .github-banner {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.3);
-            padding: 8px 15px;
-            border-radius: 5px;
-            font-size: 0.85rem;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+        /* Animation for status cards */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         
-        /* Responsive design */
-        @media (max-width: 900px) {
-            .header-content {
-                flex-direction: column;
-                text-align: center;
-            }
-            
-            .status-section {
-                align-items: center;
-                margin-top: 20px;
+        .status-card {
+            animation: fadeIn 0.6s ease forwards;
+        }
+        
+        .status-card:nth-child(1) { animation-delay: 0.1s; }
+        .status-card:nth-child(2) { animation-delay: 0.2s; }
+        .status-card:nth-child(3) { animation-delay: 0.3s; }
+        .status-card:nth-child(4) { animation-delay: 0.4s; }
+        
+        @media (max-width: 768px) {
+            .report-title {
+                font-size: 2.2rem;
             }
             
             .status-container {
-                justify-content: center;
-            }
-            
-            .report-title {
-                font-size: 2rem;
-            }
-        }
-        
-        @media (max-width: 600px) {
-            .report-container {
-                padding: 0 15px;
-            }
-            
-            .report-content {
-                padding: 20px 15px;
-            }
-            
-            .chart-container, .summary-container {
-                padding: 20px;
+                gap: 15px;
             }
             
             .status-card {
-                min-width: 80px;
-                padding: 12px 15px;
+                min-width: 140px;
+                padding: 15px 20px;
             }
             
             .status-card .value {
+                font-size: 1.8rem;
+            }
+            
+            .action-btn {
+                padding: 10px 18px;
+                font-size: 0.9rem;
+            }
+            
+            .report-content {
+                padding: 25px;
+            }
+            
+            .report-content h1 {
+                font-size: 1.8rem;
+            }
+            
+            .report-content h2 {
                 font-size: 1.5rem;
             }
         }
@@ -421,80 +379,54 @@ cat > "$OUTPUT_FILE" <<EOF
     <header class="report-header">
         <div class="header-pattern"></div>
         <div class="header-content">
-            <div class="title-section">
-                <h1 class="report-title">Customer Service Unit Tests</h1>
-                <p class="report-subtitle">Enhanced Test Report • $CURRENT_DATE</p>
-                
-                <div class="report-actions">
-                    <a href="https://developer.example.com/docs" 
-                       class="action-btn" 
-                       target="_blank">
-                        <i class="fas fa-book"></i> API Docs
-                    </a>
-                    <a href="#" class="action-btn">
-                        <i class="fas fa-download"></i> Download
-                    </a>
+            <h1 class="report-title">Customer Service - Unit Test Report</h1>
+            <p class="report-subtitle">Comprehensive Test Execution Summary • $CURRENT_DATE</p>
+            
+            <div class="status-container">
+                <div class="status-card total-tests">
+                    <h3>Total Tests</h3>
+                    <div class="value">$TOTAL_TESTS</div>
+                </div>
+                <div class="status-card passed-tests">
+                    <h3>Passed</h3>
+                    <div class="value">$PASSED</div>
+                </div>
+                <div class="status-card failed-tests">
+                    <h3>Failed</h3>
+                    <div class="value">$FAILURES</div>
+                </div>
+                <div class="status-card skipped-tests">
+                    <h3>Skipped</h3>
+                    <div class="value">$SKIPPED</div>
                 </div>
             </div>
             
-            <div class="status-section">
-                <div class="status-container">
-                    <div class="status-card total-tests">
-                        <h3>Total</h3>
-                        <div class="value">$TOTAL_TESTS</div>
-                    </div>
-                    <div class="status-card passed-tests">
-                        <h3>Passed</h3>
-                        <div class="value">$PASSED_TESTS</div>
-                    </div>
-                    <div class="status-card failed-tests">
-                        <h3>Failed</h3>
-                        <div class="value">$FAILED_TESTS</div>
-                    </div>
-                    <div class="status-card skipped-tests">
-                        <h3>Skipped</h3>
-                        <div class="value">$SKIPPED_TESTS</div>
-                    </div>
-                </div>
-                
+            <div style="margin-top: 20px;">
                 $STATUS_BADGE
             </div>
-        </div>
-        
-        <div class="github-banner">
-            <i class="fab fa-github"></i>
-            GitHub Actions
+            
+            <div class="report-actions">
+                <a href="https://developer.ausiex.com.au/docs/customer-api/b41b5a3efb0a9-introduction" 
+                   class="action-btn" 
+                   target="_blank">
+                    API Documentation
+                </a>
+                <a href="#" class="action-btn">
+                    Download Report
+                </a>
+            </div>
         </div>
     </header>
     
     <div class="report-container">
-        <div class="dashboard">
-            <div class="chart-container">
-                <canvas id="testChart"></canvas>
+        <div class="test-summary">
+            <div class="summary-header">
+                <h2 class="summary-title">Test Execution Summary</h2>
+                <div class="execution-time">Generated on: $CURRENT_DATE</div>
             </div>
-            
-            <div class="summary-container">
-                <h2 class="summary-title">Test Summary</h2>
-                <div class="summary-content">
-                    <p>Test execution completed on <span class="summary-highlight">$CURRENT_DATE</span>.</p>
-                    
-                    <p><span class="summary-highlight">$TOTAL_TESTS tests</span> were executed with:</p>
-                    <ul>
-                        <li><span class="test-passed">$PASSED_TESTS passed</span></li>
-                        <li><span class="test-failed">$FAILED_TESTS failed</span></li>
-                        <li><span class="test-skipped">$SKIPPED_TESTS skipped</span></li>
-                    </ul>
-                    
-                    <p>Overall status: $STATUS_BADGE</p>
-                    
-                    <p>The test suite covers core functionality including:</p>
-                    <ul>
-                        <li>Customer creation and validation</li>
-                        <li>Data retrieval endpoints</li>
-                        <li>Update and deletion workflows</li>
-                        <li>Error handling scenarios</li>
-                    </ul>
-                </div>
+            <div class="summary-content">
+                <p>This report provides detailed results of the automated unit tests for the Customer Service API. The test suite covers core functionality including customer creation, retrieval, updates, and validation.</p>
+                <p>All tests were executed as part of the CI/CD pipeline with results captured in real-time.</p>
             </div>
         </div>
         
@@ -506,78 +438,33 @@ cat > "$OUTPUT_FILE" <<EOF
     </div>
     
     <footer class="report-footer">
-        <p><i class="fas fa-code-branch"></i> Generated by CI/CD Pipeline • Customer Service Team</p>
-        <p><i class="fas fa-lock"></i> Confidential - For internal use only</p>
+        <p>Customer Service Unit Test Report • Generated by CI/CD Pipeline</p>
+        <p>Confidential - For internal use only</p>
     </footer>
     
     <script>
-        // Initialize test results chart
-        const ctx = document.getElementById('testChart').getContext('2d');
-        const testChart = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Passed', 'Failed', 'Skipped'],
-                datasets: [{
-                    data: [$PASSED_TESTS, $FAILED_TESTS, $SKIPPED_TESTS],
-                    backgroundColor: [
-                        '#2a9d8f',
-                        '#e63946',
-                        '#f4a261'
-                    ],
-                    borderWidth: 0,
-                    hoverOffset: 15
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            font: {
-                                size: 14,
-                                family: "'Segoe UI', 'Roboto', sans-serif"
-                            },
-                            padding: 20
-                        }
-                    },
-                    tooltip: {
-                        backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                        padding: 12,
-                        titleFont: {
-                            size: 16
-                        },
-                        bodyFont: {
-                            size: 14
-                        }
-                    }
-                },
-                cutout: '65%'
-            }
-        });
-        
-        // Enhance test report table
+        // Simple script to enhance the report
         document.addEventListener('DOMContentLoaded', function() {
             // Color code test results
             const cells = document.querySelectorAll('td');
             cells.forEach(cell => {
-                if (cell.textContent.includes('FAILURE')) {
+                const text = cell.textContent.trim();
+                if (text.includes('FAILURE') || text.includes('Failure')) {
                     cell.classList.add('test-failed');
-                } else if (cell.textContent.includes('SUCCESS')) {
+                } else if (text.includes('SUCCESS') || text.includes('Success')) {
                     cell.classList.add('test-passed');
-                } else if (cell.textContent.includes('SKIPPED')) {
+                } else if (text.includes('SKIPPED') || text.includes('Skipped')) {
                     cell.classList.add('test-skipped');
-                } else if (cell.textContent.includes('ERROR')) {
+                } else if (text.includes('ERROR') || text.includes('Error')) {
                     cell.classList.add('test-error');
                 }
             });
             
-            // Make test rows clickable
+            // Add click handlers for test rows to show more details
             const testRows = document.querySelectorAll('tr');
             testRows.forEach(row => {
                 row.addEventListener('click', function() {
-                    this.classList.toggle('active');
+                    this.classList.toggle('expanded');
                 });
             });
         });
@@ -586,4 +473,4 @@ cat > "$OUTPUT_FILE" <<EOF
 </html>
 EOF
 
-echo "::notice::Generated enhanced HTML report: $OUTPUT_FILE"
+echo "Generated enhanced HTML report: $OUTPUT_FILE"
