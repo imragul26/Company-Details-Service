@@ -37,7 +37,7 @@ jobs:
       run: |
         VERSION="${{ github.event.release.tag_name }}"
         TEST_REPORT_FILENAME="${{ env.moduleName }}-test-report-${VERSION}.html"
-        echo "::set-output name=filename::$TEST_REPORT_FILENAME"
+        echo "filename=$TEST_REPORT_FILENAME" >> $GITHUB_OUTPUT
         mvn test surefire-report:report
         npm install -g html-inline
         html-inline target/site/surefire-report.html > target/site/$TEST_REPORT_FILENAME

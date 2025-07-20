@@ -41,44 +41,47 @@ awk '
   # Extract original meta tags and title
   grep -E '<meta|<title' "$CONTENT_FILE"
   
-  # Add custom styles
+  # Add optimized styles
   echo '<style>'
   
-  # Inline all CSS files
-  [ -d "${INPUT_DIR}/css" ] && find "${INPUT_DIR}/css" -name '*.css' -exec cat {} \;
+  # Only include essential CSS for the report
+  echo '/* ===== ESSENTIAL REPORT STYLES ===== */'
+  echo 'body { margin:0; font-family:"Helvetica Neue",Helvetica,Arial,sans-serif; font-size:14px; line-height:20px; color:#333; background-color:#fff }'
+  echo 'a { color:#08c; text-decoration:none } a:hover, a:focus { color:#005580; text-decoration:underline }'
+  echo '.container { width:940px; margin:0 auto }'
+  echo '.row { margin-left:-20px } .row:after { content:""; display:table; clear:both }'
+  echo '.span12 { width:940px }'
+  echo 'header { background:#f8f9fa; padding:15px 0; border-bottom:1px solid #e0e0e0 }'
+  echo '#banner { overflow:hidden } #bannerLeft h1 { margin:0; font-size:24px }'
+  echo '#breadcrumbs { background:#f5f5f5; border-radius:4px; padding:8px 15px; margin:15px 0 }'
+  echo '.breadcrumb { margin:0; padding:0; list-style:none } .breadcrumb li { display:inline }'
+  echo '.breadcrumb .divider { padding:0 5px; color:#ccc }'
+  echo '.table { width:100%; margin-bottom:20px } .table th { text-align:left }'
+  echo '.table-striped tbody > tr:nth-child(odd) > td { background-color:#f9f9f9 }'
+  echo '.pull-left { float:left } .pull-right { float:right } .clear { clear:both }'
   
   # Add custom header styles
-  echo '
-    .custom-header {
-      margin-bottom: 20px;
-      border-bottom: 2px solid #e0e0e0;
-      padding: 15px;
-      background: #f8f9fa;
-    }
-    .project-title {
-      font-size: 24px;
-      font-weight: bold;
-      color: #2c3e50;
-    }
-    .report-meta {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 10px;
-      font-size: 14px;
-    }
-    .publish-date {
-      color: #7f8c8d;
-    }
-    /* Fix spacing after custom header */
-    .container-top {
-      margin-top: 0 !important;
-    }
-    /* Ensure breadcrumb appears correctly */
-    .breadcrumb {
-      padding: 8px 15px !important;
-      margin-bottom: 20px !important;
-    }
-  '
+  echo '/* ===== CUSTOM HEADER STYLES ===== */'
+  echo '.custom-header {'
+  echo '  margin-bottom: 20px;'
+  echo '  border-bottom: 2px solid #e0e0e0;'
+  echo '  padding: 15px;'
+  echo '  background: #f8f9fa;'
+  echo '}'
+  echo '.project-title {'
+  echo '  font-size: 24px;'
+  echo '  font-weight: bold;'
+  echo '  color: #2c3e50;'
+  echo '}'
+  echo '.report-meta {'
+  echo '  display: flex;'
+  echo '  justify-content: space-between;'
+  echo '  margin-top: 10px;'
+  echo '  font-size: 14px;'
+  echo '}'
+  echo '.publish-date {'
+  echo '  color: #7f8c8d;'
+  echo '}'
   echo '</style>'
   echo '</head>'
   
@@ -86,31 +89,30 @@ awk '
   cat temp.html
 } > "$OUTPUT_FILE"
 
-# Inline JavaScript
-while IFS= read -r js_path; do
-  [ -f "${INPUT_DIR}/${js_path}" ] || continue
-  js_content=$(< "${INPUT_DIR}/${js_path}")
-  
-  # Escape special characters for sed
-  js_content_escaped=$(printf '%s\n' "$js_content" | sed ':a;N;$!ba;s/\n/\\n/g; s/[\&/]/\\&/g; s/$/\\n/')
-  
-  # Replace script reference with inline JavaScript
-  sed -i "s|<script src=\"${js_path}\"></script>|<script>${js_content_escaped}</script>|g" "$OUTPUT_FILE"
-done < <(grep -o 'src="[^"]*\.js"' "$CONTENT_FILE" | sed 's/src="//;s/"//')
+# Only inline specific required JavaScript
+for js_file in "apache-maven-fluido-2.0.0-M9.min.js"; do
+  if [ -f "${INPUT_DIR}/js/${js_file}" ]; then
+    # Extract only essential JS functions (toggleDisplay)
+    grep -A 15 'function toggleDisplay' "${INPUT_DIR}/js/${js_file}" > essential.js
+    
+    js_content=$(< essential.js)
+    # Escape special characters for sed
+    js_content_escaped=$(printf '%s\n' "$js_content" | sed ':a;N;$!ba;s/\n/\\n/g; s/[\&/]/\\&/g; s/$/\\n/')
+    # Replace script reference with inline JavaScript
+    sed -i "s|<script src=\"./js/${js_file}\"></script>|<script>${js_content_escaped}</script>|g" "$OUTPUT_FILE"
+    rm essential.js
+  fi
+done
 
-# Inline images
-for sub in images img; do
-  dir="${INPUT_DIR}/${sub}"
-  if [ -d "$dir" ]; then
-    for img in "$dir"/*.{png,jpg,jpeg,gif,svg}; do
-      [ -f "$img" ] || continue
-      base_img=$(basename "$img")
-      
+# Only inline specific required images
+for img_file in "feather.png" "feather@2x.png"; do
+  for sub in images img; do
+    if [ -f "${INPUT_DIR}/${sub}/${img_file}" ]; then
+      img="${INPUT_DIR}/${sub}/${img_file}"
       # Escape special characters for sed
-      safe_img=$(printf '%s\n' "$base_img" | sed 's/[][\/.^$*]/\\&/g')
-      
+      safe_img=$(printf '%s\n' "$img_file" | sed 's/[][\/.^$*]/\\&/g')
       # Determine MIME type
-      ext="${img##*.}"
+      ext="${img_file##*.}"
       case "$ext" in
         svg) mime_type="image/svg+xml" ;;
         png) mime_type="image/png" ;;
@@ -119,15 +121,12 @@ for sub in images img; do
         gif) mime_type="image/gif" ;;
         *) mime_type="image/$ext" ;;
       esac
-      
       # Convert to base64
       data=$(base64 -w0 "$img")
-      
       # Replace image references
       sed -i "s|src=[\"']${sub}/${safe_img}[\"']|src=\"data:${mime_type};base64,${data}\"|g" "$OUTPUT_FILE"
-      sed -i "s|url([\"']${sub}/${safe_img}[\"'])|url(data:${mime_type};base64,${data})|g" "$OUTPUT_FILE"
-    done
-  fi
+    fi
+  done
 done
 
 # Final cleanup
