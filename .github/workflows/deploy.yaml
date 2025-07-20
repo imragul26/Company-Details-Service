@@ -6,7 +6,10 @@
 # separate terms of service, privacy policy, and support
 # documentation.
 
-name: Java CI with Maven
+
+name: Java CI Test Report
+env:
+  moduleName: company-details-service
 
 on:
   push:
@@ -15,8 +18,8 @@ on:
 
 
 jobs:
-  build:
-
+  test-report:
+    name: Build and Publish Test Report
     runs-on: ubuntu-latest
     steps:
     - name: Check out code 
@@ -29,29 +32,19 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ap-south-1
 
-    # - name: Login to Amazon ECR
-    #   id: login-ecr
-    #   uses: aws-actions/amazon-ecr-login@v1
-
-    # - name: Build, tag, and push image to Amazon ECR
-    #   env:
-    #     ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-    #     ECR_REPOSITORY: github-actions
-    #     IMAGE_TAG: ${{ github.sha }}
-    #   run: |
-    #     docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
-    #     docker push -a $ECR_REGISTRY/$ECR_REPOSITORY
-    - name: Run Unit Tests and Generate Surefire Report
+    - name: Run Unit Tests and Generate Project Test Report
+      id: test_report
       run: |
+        VERSION="${{ github.event.release.tag_name }}"
+        TEST_REPORT_FILENAME="${{ env.moduleName }}-test-report-${VERSION}.html"
+        echo "filename=$TEST_REPORT_FILENAME" >> $GITHUB_OUTPUT
         mvn test surefire-report:report
-
-    - name: Inline CSS and images into HTML
-      run: |
         npm install -g html-inline
-        html-inline target/site/surefire-report.html > target/site/surefire-report-inline.html
+        html-inline target/site/surefire-report.html > target/site/$TEST_REPORT_FILENAME
 
-    - name: Upload Single HTML Report
+    - name: Upload Project Test Report (HTML)
+      if: success() || failure()
       uses: actions/upload-artifact@v4
       with:
-        name: test-report
-        path: target/site/surefire-report-inline.html
+        name: ${{ steps.test_report.outputs.filename }}
+        path: target/site/${{ steps.test_report.outputs.filename }}
