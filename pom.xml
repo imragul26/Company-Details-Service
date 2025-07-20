@@ -251,13 +251,8 @@
         <artifactId>maven-surefire-report-plugin</artifactId>
         <version>3.5.3</version>
         <configuration>
-          <!-- Show successful tests in the report -->
           <showSuccess>true</showSuccess>
-          <!-- Generate report even if tests fail -->
-          <failIfNoTests>false</failIfNoTests>
-          <!-- Output directory for reports -->
           <outputDirectory>target/site</outputDirectory>
-          <!-- Additional configuration for better reports -->
           <linkXRef>true</linkXRef>
           <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
         </configuration>

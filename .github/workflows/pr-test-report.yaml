@@ -24,24 +24,16 @@ jobs:
     - name: Generate HTML report
       run: mvn surefire-report:report-only
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-        
-    - name: Install dependencies
-      run: |
-        pip install -r .github/scripts/requirements.txt
-        
     - name: Create self-contained report
       run: |
-        python .github/scripts/inline_report.py \
-          target/reports/surefire.html \
-          self-contained-report.html
+        chmod +x .github/scripts/generate-report.sh
+        ./.github/scripts/generate-report.sh \
+          target/reports \
+          surefire.html
         
     - name: Upload report
       uses: actions/upload-artifact@v4
       with:
         name: unit-test-report
-        path: self-contained-report.html
+        path: surefire.html
         retention-days: 7
