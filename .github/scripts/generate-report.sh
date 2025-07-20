@@ -8,12 +8,15 @@ CURRENT_DATE=$(date '+%Y-%m-%d %H:%M:%S')
 HEADER_FILE=$(mktemp)
 CONTENT_FILE=$(mktemp)
 
-# Custom header HTML
+# Enhanced custom header HTML with Ausiex theme
 cat > "$HEADER_FILE" <<EOF
 <div class="custom-header">
-  <div class="project-title">Customer Service</div>
-  <div class="report-meta">
-    <span class="publish-date">Last Published: ${CURRENT_DATE}</span>
+  <div class="header-content">
+    <h1 class="project-title">Customer Service Unit Test Report</h1>
+    <div class="report-meta">
+      <span class="publish-date">Generated: ${CURRENT_DATE}</span>
+      <a class="report-link" href="https://developer.ausiex.com.au/docs/customer-api/b41b5a3efb0a9-introduction" target="_blank">API Documentation</a>
+    </div>
   </div>
 </div>
 EOF
@@ -32,102 +35,229 @@ awk '
   {print}
 ' "$CONTENT_FILE" > temp.html
 
-# Build final HTML with proper structure
+# Build final HTML with Ausiex theme styling
 {
   echo '<!DOCTYPE html>'
   echo '<html xmlns="http://www.w3.org/1999/xhtml" lang="en">'
   echo '<head>'
+  echo '<meta charset="UTF-8">'
+  echo '<meta name="viewport" content="width=device-width, initial-scale=1">'
+  echo '<title>Customer Service - Unit Test Report</title>'
   
-  # Extract original meta tags and title
-  grep -E '<meta|<title' "$CONTENT_FILE"
-  
-  # Add optimized styles
+  # Ausiex-inspired theme CSS
   echo '<style>'
-  
-  # Only include essential CSS for the report
-  echo '/* ===== ESSENTIAL REPORT STYLES ===== */'
-  echo 'body { margin:0; font-family:"Helvetica Neue",Helvetica,Arial,sans-serif; font-size:14px; line-height:20px; color:#333; background-color:#fff }'
-  echo 'a { color:#08c; text-decoration:none } a:hover, a:focus { color:#005580; text-decoration:underline }'
-  echo '.container { width:940px; margin:0 auto }'
-  echo '.row { margin-left:-20px } .row:after { content:""; display:table; clear:both }'
-  echo '.span12 { width:940px }'
-  echo 'header { background:#f8f9fa; padding:15px 0; border-bottom:1px solid #e0e0e0 }'
-  echo '#banner { overflow:hidden } #bannerLeft h1 { margin:0; font-size:24px }'
-  echo '#breadcrumbs { background:#f5f5f5; border-radius:4px; padding:8px 15px; margin:15px 0 }'
-  echo '.breadcrumb { margin:0; padding:0; list-style:none } .breadcrumb li { display:inline }'
-  echo '.breadcrumb .divider { padding:0 5px; color:#ccc }'
-  echo '.table { width:100%; margin-bottom:20px } .table th { text-align:left }'
-  echo '.table-striped tbody > tr:nth-child(odd) > td { background-color:#f9f9f9 }'
-  echo '.pull-left { float:left } .pull-right { float:right } .clear { clear:both }'
-  
-  # Add custom header styles
-  echo '/* ===== CUSTOM HEADER STYLES ===== */'
+  echo ':root {'
+  echo '  --primary-dark: #060667;'
+  echo '  --primary-medium: #0070c0;'
+  echo '  --primary-light: #e6f0fa;'
+  echo '  --accent: #41b6e6;'
+  echo '  --text-dark: #333;'
+  echo '  --text-light: #fff;'
+  echo '  --border: #d1d1d1;'
+  echo '  --success: #4caf50;'
+  echo '  --failure: #f44336;'
+  echo '  --warning: #ff9800;'
+  echo '}'
+  echo ''
+  echo 'body {'
+  echo '  margin: 0;'
+  echo '  font-family: "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;'
+  echo '  font-size: 15px;'
+  echo '  line-height: 1.6;'
+  echo '  color: var(--text-dark);'
+  echo '  background-color: #f8f9fa;'
+  echo '}'
+  echo ''
   echo '.custom-header {'
-  echo '  margin-bottom: 20px;'
-  echo '  border-bottom: 2px solid #e0e0e0;'
-  echo '  padding: 15px;'
-  echo '  background: #f8f9fa;'
+  echo '  background: linear-gradient(135deg, var(--primary-dark), var(--primary-medium));'
+  echo '  color: var(--text-light);'
+  echo '  padding: 25px 0;'
+  echo '  box-shadow: 0 2px 10px rgba(0,0,0,0.1);'
+  echo '  margin-bottom: 25px;'
   echo '}'
+  echo ''
+  echo '.header-content {'
+  echo '  max-width: 1200px;'
+  echo '  margin: 0 auto;'
+  echo '  padding: 0 20px;'
+  echo '}'
+  echo ''
   echo '.project-title {'
-  echo '  font-size: 24px;'
-  echo '  font-weight: bold;'
-  echo '  color: #2c3e50;'
+  echo '  font-size: 28px;'
+  echo '  font-weight: 600;'
+  echo '  margin: 0 0 8px 0;'
+  echo '  letter-spacing: 0.5px;'
   echo '}'
+  echo ''
   echo '.report-meta {'
   echo '  display: flex;'
   echo '  justify-content: space-between;'
-  echo '  margin-top: 10px;'
+  echo '  align-items: center;'
+  echo '  font-size: 15px;'
+  echo '  opacity: 0.9;'
+  echo '}'
+  echo ''
+  echo '.report-link {'
+  echo '  color: var(--accent);'
+  echo '  text-decoration: none;'
+  echo '  font-weight: 500;'
+  echo '  display: inline-flex;'
+  echo '  align-items: center;'
+  echo '}'
+  echo ''
+  echo '.report-link:hover {'
+  echo '  text-decoration: underline;'
+  echo '}'
+  echo ''
+  echo '/* Main content container */'
+  echo '.container {'
+  echo '  max-width: 1200px;'
+  echo '  margin: 0 auto;'
+  echo '  padding: 0 20px;'
+  echo '  background: white;'
+  echo '  border-radius: 8px;'
+  echo '  box-shadow: 0 2px 15px rgba(0,0,0,0.05);'
+  echo '  padding: 25px;'
+  echo '  margin-bottom: 40px;'
+  echo '}'
+  echo ''
+  echo '/* Table styling */'
+  echo '.table {'
+  echo '  width: 100%;'
+  echo '  border-collapse: collapse;'
+  echo '  margin: 20px 0;'
+  echo '}'
+  echo ''
+  echo '.table th {'
+  echo '  background-color: var(--primary-light);'
+  echo '  color: var(--primary-dark);'
+  echo '  padding: 12px 15px;'
+  echo '  text-align: left;'
+  echo '  font-weight: 600;'
+  echo '  border-bottom: 2px solid var(--primary-medium);'
+  echo '}'
+  echo ''
+  echo '.table td {'
+  echo '  padding: 12px 15px;'
+  echo '  border-bottom: 1px solid var(--border);'
+  echo '}'
+  echo ''
+  echo '.table-striped tbody tr:nth-child(odd) {'
+  echo '  background-color: #fafafa;'
+  echo '}'
+  echo ''
+  echo '.table-striped tbody tr:hover {'
+  echo '  background-color: var(--primary-light);'
+  echo '}'
+  echo ''
+  echo '/* Status badges */'
+  echo '.badge {'
+  echo '  padding: 4px 10px;'
+  echo '  border-radius: 12px;'
+  echo '  font-size: 13px;'
+  echo '  font-weight: 500;'
+  echo '}'
+  echo ''
+  echo '.badge-success {'
+  echo '  background-color: #e8f5e9;'
+  echo '  color: var(--success);'
+  echo '}'
+  echo ''
+  echo '.badge-failure {'
+  echo '  background-color: #ffebee;'
+  echo '  color: var(--failure);'
+  echo '}'
+  echo ''
+  echo '/* Section headers */'
+  echo 'h1, h2, h3 {'
+  echo '  color: var(--primary-dark);'
+  echo '}'
+  echo ''
+  echo 'h1 {'
+  echo '  border-bottom: 2px solid var(--primary-medium);'
+  echo '  padding-bottom: 10px;'
+  echo '  margin-top: 0;'
+  echo '}'
+  echo ''
+  echo 'h2 {'
+  echo '  margin-top: 30px;'
+  echo '  padding-bottom: 8px;'
+  echo '  border-bottom: 1px solid var(--border);'
+  echo '}'
+  echo ''
+  echo '/* Breadcrumb styling */'
+  echo '.breadcrumb {'
+  echo '  background-color: #f0f4f8;'
+  echo '  padding: 10px 15px;'
+  echo '  border-radius: 6px;'
+  echo '  margin-bottom: 20px;'
   echo '  font-size: 14px;'
   echo '}'
-  echo '.publish-date {'
-  echo '  color: #7f8c8d;'
+  echo ''
+  echo '.breadcrumb .divider {'
+  echo '  color: var(--primary-medium);'
+  echo '  padding: 0 8px;'
+  echo '}'
+  echo ''
+  echo '#bannerLeft h1 {'
+  echo '  color: var(--primary-dark);'
+  echo '  font-size: 22px;'
+  echo '  margin: 5px 0;'
+  echo '}'
+  echo ''
+  echo '@media (max-width: 768px) {'
+  echo '  .header-content, .container {'
+  echo '    padding: 0 15px;'
+  echo '  }'
+  echo '  .project-title {'
+  echo '    font-size: 24px;'
+  echo '  }'
+  echo '  .report-meta {'
+  echo '    flex-direction: column;'
+  echo '    align-items: flex-start;'
+  echo '    gap: 8px;'
+  echo '  }'
   echo '}'
   echo '</style>'
   echo '</head>'
   
   # Insert modified body content
+  echo '<body>'
   cat temp.html
+  echo '</body>'
+  echo '</html>'
 } > "$OUTPUT_FILE"
 
-# Only inline specific required JavaScript
-for js_file in "apache-maven-fluido-2.0.0-M9.min.js"; do
-  if [ -f "${INPUT_DIR}/js/${js_file}" ]; then
-    # Extract only essential JS functions (toggleDisplay)
-    grep -A 15 'function toggleDisplay' "${INPUT_DIR}/js/${js_file}" > essential.js
-    
-    js_content=$(< essential.js)
-    # Escape special characters for sed
-    js_content_escaped=$(printf '%s\n' "$js_content" | sed ':a;N;$!ba;s/\n/\\n/g; s/[\&/]/\\&/g; s/$/\\n/')
-    # Replace script reference with inline JavaScript
-    sed -i "s|<script src=\"./js/${js_file}\"></script>|<script>${js_content_escaped}</script>|g" "$OUTPUT_FILE"
-    rm essential.js
-  fi
-done
+# Fix image paths in the HTML
+sed -i 's|src="\./|src="|g' "$OUTPUT_FILE"
+sed -i 's|url(\./|url(|g' "$OUTPUT_FILE"
 
-# Only inline specific required images
-for img_file in "feather.png" "feather@2x.png"; do
-  for sub in images img; do
-    if [ -f "${INPUT_DIR}/${sub}/${img_file}" ]; then
-      img="${INPUT_DIR}/${sub}/${img_file}"
-      # Escape special characters for sed
-      safe_img=$(printf '%s\n' "$img_file" | sed 's/[][\/.^$*]/\\&/g')
-      # Determine MIME type
-      ext="${img_file##*.}"
-      case "$ext" in
-        svg) mime_type="image/svg+xml" ;;
-        png) mime_type="image/png" ;;
-        jpg) mime_type="image/jpeg" ;;
-        jpeg) mime_type="image/jpeg" ;;
-        gif) mime_type="image/gif" ;;
-        *) mime_type="image/$ext" ;;
-      esac
-      # Convert to base64
-      data=$(base64 -w0 "$img")
-      # Replace image references
-      sed -i "s|src=[\"']${sub}/${safe_img}[\"']|src=\"data:${mime_type};base64,${data}\"|g" "$OUTPUT_FILE"
-    fi
-  done
-done
+# Inline all images from the images directory
+if [ -d "${INPUT_DIR}/images" ]; then
+  while IFS= read -r -d $'\0' img; do
+    base_img=$(basename "$img")
+    # Escape special characters for sed
+    safe_img=$(printf '%s\n' "$base_img" | sed 's/[][\/.^$*]/\\&/g')
+    
+    # Determine MIME type
+    ext="${base_img##*.}"
+    case "$ext" in
+      svg) mime_type="image/svg+xml" ;;
+      png) mime_type="image/png" ;;
+      jpg) mime_type="image/jpeg" ;;
+      jpeg) mime_type="image/jpeg" ;;
+      gif) mime_type="image/gif" ;;
+      *) mime_type="image/$ext" ;;
+    esac
+    
+    # Convert to base64
+    data=$(base64 -w0 "$img")
+    
+    # Replace image references
+    sed -i "s|src=[\"']images/${safe_img}[\"']|src=\"data:${mime_type};base64,${data}\"|gI" "$OUTPUT_FILE"
+    sed -i "s|url([\"']images/${safe_img}[\"'])|url(data:${mime_type};base64,${data})|gI" "$OUTPUT_FILE"
+  done < <(find "${INPUT_DIR}/images" -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.gif" -o -iname "*.svg" \) -print0)
+fi
 
 # Final cleanup
 rm "$HEADER_FILE" "$CONTENT_FILE" temp.html
