@@ -18,19 +18,30 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ap-south-1
 
-    - name: Run Unit Tests and Generate PR Test Report
-      id: test_report
-      run: |
-        PR_NUMBER="${{ github.event.pull_request.number }}"
-        TEST_REPORT_FILENAME="company-details-service-test-report-pr-${PR_NUMBER}.html"
-        echo "filename=$TEST_REPORT_FILENAME" >> $GITHUB_OUTPUT
-        mvn test surefire-report:report
-        npm install -g html-inline
-        html-inline target/site/surefire-report.html > target/site/$TEST_REPORT_FILENAME
+    - name: Build and run tests
+      run: mvn test
+      
+    - name: Generate HTML report
+      run: mvn surefire-report:report-only
 
-    - name: Upload PR Test Report (HTML)
-      if: success() || failure()
-      uses: actions/upload-artifact@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
       with:
-        name: ${{ steps.test_report.outputs.filename }}
-        path: target/site/${{ steps.test_report.outputs.filename }}
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        pip install -r .github/scripts/requirements.txt
+        
+    - name: Create self-contained report
+      run: |
+        python .github/scripts/inline_report.py \
+          target/reports/surefire.html \
+          self-contained-report.html
+        
+    - name: Upload report
+      uses: actions/upload-artifact@v3
+      with:
+        name: unit-test-report
+        path: self-contained-report.html
+        retention-days: 7

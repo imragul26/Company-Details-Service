@@ -124,7 +124,7 @@
 
 	<build>
 		<plugins>
-			<plugin>
+		<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
 				<configuration>
@@ -136,10 +136,10 @@
 					</annotationProcessorPaths>
 				</configuration>
 			</plugin>
-			<plugin>
+			<!-- <plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-report-plugin</artifactId>
-				<version>3.2.5</version>
+				<version>3.5.3</version>
 				<executions>
 					<execution>
 						<phase>test</phase>
@@ -148,7 +148,7 @@
 						</goals>
 					</execution>
 				</executions>
-			</plugin>
+			</plugin> -->
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
@@ -243,5 +243,25 @@
 			<url>https://packages.confluent.io/maven/</url>
 		</repository>
 	</repositories>
-
+<reporting>
+    <plugins>
+      <!-- Add this plugin for HTML test reporting -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-report-plugin</artifactId>
+        <version>3.5.3</version>
+        <configuration>
+          <!-- Show successful tests in the report -->
+          <showSuccess>true</showSuccess>
+          <!-- Generate report even if tests fail -->
+          <failIfNoTests>false</failIfNoTests>
+          <!-- Output directory for reports -->
+          <outputDirectory>target/site</outputDirectory>
+          <!-- Additional configuration for better reports -->
+          <linkXRef>true</linkXRef>
+          <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
+        </configuration>
+      </plugin>
+    </plugins>
+  </reporting>
 </project>
