@@ -24,6 +24,10 @@ jobs:
     - name: Generate HTML report
       run: mvn surefire-report:report-only
 
+    
+    - name: Install dependencies
+      run: sudo apt-get install -y xmlstarlet
+
     - name: Create self-contained report
       run: |
         chmod +x .github/scripts/generate-report.sh
