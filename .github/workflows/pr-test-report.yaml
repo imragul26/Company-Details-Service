@@ -24,12 +24,13 @@ jobs:
     - name: Generate HTML report
       run: mvn surefire-report:report-only
 
-    - name: Create self-contained report
+    - name: Generate XMLStarlet report
       run: |
-        chmod +x .github/scripts/generate-report.sh
-        ./.github/scripts/generate-report.sh \
-          target/reports \
-          surefire.html
+        sudo apt-get install -y xmlstarlet
+        chmod +x .github/scripts/generate-xmlstarlet-report.sh
+        ./.github/scripts/generate-xmlstarlet-report.sh \
+          target/surefire-reports \
+          xmlstarlet-report.html
         
     - name: Upload report
       uses: actions/upload-artifact@v4
