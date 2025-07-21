@@ -1,0 +1,39 @@
+name: PR CI Test Report
+
+on:
+  pull_request:
+
+jobs:
+  test-report:
+    name: Build and Publish PR Test Report
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v2
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-south-1
+
+    - name: Build and run tests
+      run: mvn test
+      
+    - name: Generate HTML report
+      run: mvn surefire-report:report-only
+
+    - name: Create self-contained report
+      run: |
+        chmod +x .github/scripts/generate-report.sh
+        ./.github/scripts/generate-report.sh \
+          target/surefire-reports \
+          target/reports/surefire.html
+        
+    - name: Upload report
+      uses: actions/upload-artifact@v4
+      with:
+        name: unit-test-report
+        path: target/reports/surefire.html
+        retention-days: 7
