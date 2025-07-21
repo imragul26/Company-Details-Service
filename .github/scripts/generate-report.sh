@@ -1,24 +1,11 @@
 #!/bin/bash
 
 # Enhanced HTML Test Report Generator
-INPUT_DIR="$1"  # Directory containing TEST-*.xml files (target/surefire-reports)
-OUTPUT_FILE="$2" # Output HTML file (target/reports/test-report.html)
+INPUT_DIR="$1"            # Directory containing TEST-*.xml files
+OUTPUT_FILE="$2"          # Output HTML file
 CURRENT_DATE=$(date '+%Y-%m-%d %H:%M:%S')
 STANDARD_REPORT="$(dirname "$OUTPUT_FILE")/surefire.html"
-
-# Get build information from environment variables
-BUILD_INFO=""
-if [ -n "$GIT_BRANCH" ]; then
-    BUILD_INFO+="Branch: $GIT_BRANCH"
-fi
-if [ -n "$GIT_TAG" ]; then
-    [ -n "$BUILD_INFO" ] && BUILD_INFO+=" • "
-    BUILD_INFO+="Tag: $GIT_TAG"
-fi
-if [ -n "$BUILD_NUMBER" ]; then
-    [ -n "$BUILD_INFO" ] && BUILD_INFO+=" • "
-    BUILD_INFO+="Build: $BUILD_NUMBER"
-fi
+REPO_URL="https://github.com/your-org/your-repo"  # Set your repository URL here
 
 # Initialize counts
 TOTAL_TESTS=0
@@ -32,7 +19,7 @@ while IFS= read -r xml_file; do
     while read -r line; do
         case $line in
             *"testsuite"*)
-                # Extract values safely
+                # Extract values
                 tests=$(grep -o 'tests="[0-9]*"' <<< "$line" | cut -d'"' -f2)
                 failures=$(grep -o 'failures="[0-9]*"' <<< "$line" | cut -d'"' -f2)
                 errors=$(grep -o 'errors="[0-9]*"' <<< "$line" | cut -d'"' -f2)
@@ -57,25 +44,24 @@ PASSED=$((TOTAL_TESTS - FAILURES - ERRORS - SKIPPED))
 SUREFIRE_TIME=""
 if [ -f "$STANDARD_REPORT" ]; then
     SUREFIRE_TIME=$(awk '
-        BEGIN {RS="</tr>"; FS="</td>"; time_found=0}
-        /<th>Tests<\/th>/ {time_found=1}
-        time_found && /<td>[0-9.]/ {
-            for(i=1; i<=NF; i++) {
-                if ($i ~ /<td>[0-9.]/ && $i ~ / s<\/td>/) {
-                    gsub(/.*<td>| s<.*/, "", $i)
-                    time_val = $i
-                    exit
-                }
+        BEGIN { RS="<tr"; found=0 }
+        /<th>Tests<\/th>/ { found=1; next }
+        found && /<td>[0-9]/ {
+            if (match($0, /<td>[0-9.]+ s<\/td>/)) {
+                time_str = substr($0, RSTART, RLENGTH)
+                gsub(/<\/?td>/, "", time_str)
+                gsub(/^[ \t]+|[ \t]+$/, "", time_str)
+                print time_str
+                exit
             }
         }
-        END {if (time_val) print time_val " s"}
     ' "$STANDARD_REPORT")
 fi
 
-# If not found, use simple fallback
-[ -z "$SUREFIRE_TIME" ] && SUREFIRE_TIME="N/A"
+# Fallback if not found
+[ -z "$SUREFIRE_TIME" ] && SUREFIRE_TIME="${TIME} s"
 
-# 2. Get HTML report content with replacements
+# Get HTML report content with replacements
 REPORT_CONTENT=""
 if [ -f "$STANDARD_REPORT" ]; then
     REPORT_CONTENT=$(awk '/<main id="bodyColumn">/,/<\/main>/' "$STANDARD_REPORT" | sed '1d;$d' | \
@@ -89,6 +75,18 @@ else
         <i class='fas fa-exclamation-triangle'></i>
         Detailed test report not generated. Run 'mvn site' to generate full report.
     </div>"
+fi
+
+# Get Git tag information
+GIT_TAG=$(git describe --tags --exact-match HEAD 2>/dev/null)
+TAG_INFO=""
+if [ -n "$GIT_TAG" ]; then
+    TAG_INFO="<a href='$REPO_URL/releases/tag/$GIT_TAG' target='_blank' class='tag-link'>
+        <div class='tag-info'>
+            <i class='fas fa-tag'></i>
+            <span>Release Version: $GIT_TAG</span>
+        </div>
+    </a>"
 fi
 
 # Generate status badge
@@ -119,9 +117,9 @@ cat > "$OUTPUT_FILE" <<EOF
         
         /* Base Styles */
         :root {
-            --header-bg: #060667; /* Primary dark blue */
+            --header-bg: #060667;
             --header-text: #ffffff;
-            --accent: #b8ff4e; /* Vibrant green from API docs */
+            --accent: #b8ff4e;
             --accent-light: #d4ff9c;
             --card-bg: #ffffff;
             --text-primary: #333333;
@@ -184,14 +182,50 @@ cat > "$OUTPUT_FILE" <<EOF
             font-size: 1.3rem;
             opacity: 0.9;
             max-width: 800px;
-            margin: 0 auto 10px;
+            margin: 0 auto 20px;
         }
         
-        .build-info {
-            font-size: 1.1rem;
-            opacity: 0.85;
-            margin-bottom: 15px;
-            font-weight: 500;
+        /* Tag info styles */
+        .tag-link {
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 20px;
+            transition: transform 0.3s ease;
+        }
+        
+        .tag-link:hover {
+            transform: translateY(-3px);
+        }
+        
+        .tag-info {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-size: 1.2rem;
+            background: rgba(184, 255, 78, 0.15);
+            padding: 10px 25px;
+            border-radius: 30px;
+            border: 1px solid rgba(184, 255, 78, 0.4);
+            backdrop-filter: blur(5px);
+            max-width: 400px;
+            margin: 0 auto;
+            transition: all 0.3s ease;
+        }
+        
+        .tag-link:hover .tag-info {
+            background: rgba(184, 255, 78, 0.25);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .tag-info i {
+            color: var(--accent);
+            font-size: 1.4rem;
+        }
+        
+        .tag-info span {
+            font-weight: 600;
+            letter-spacing: 0.5px;
         }
         
         /* Status Cards */
@@ -295,29 +329,15 @@ cat > "$OUTPUT_FILE" <<EOF
             background: var(--card-bg);
             border-radius: 15px;
             box-shadow: var(--shadow);
-            padding: 25px 30px;
+            padding: 30px;
             margin-bottom: 30px;
-        }
-        
-        .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
-        }
-        
-        .summary-item {
-            background: #f8f9ff;
-            border-radius: 10px;
-            padding: 15px;
-            border-left: 4px solid var(--accent);
         }
         
         .summary-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
             padding-bottom: 15px;
             border-bottom: 1px solid var(--border);
         }
@@ -357,8 +377,6 @@ cat > "$OUTPUT_FILE" <<EOF
             margin-bottom: 25px;
             padding-bottom: 15px;
             border-bottom: 3px solid var(--accent);
-            font-weight: 600;
-            font-family: 'Segoe UI', 'Roboto', sans-serif;
         }
         
         .report-content h2 {
@@ -367,21 +385,6 @@ cat > "$OUTPUT_FILE" <<EOF
             margin: 40px 0 25px;
             padding-bottom: 10px;
             border-bottom: 2px solid var(--border);
-            font-weight: 600;
-            font-family: 'Segoe UI', 'Roboto', sans-serif;
-        }
-        
-        /* Style report links */
-        .report-content a {
-            color: #1a5fb4;
-            text-decoration: none;
-            font-weight: 600;
-            transition: color 0.3s;
-        }
-        
-        .report-content a:hover {
-            color: var(--accent);
-            text-decoration: underline;
         }
         
         .report-content table {
@@ -522,6 +525,12 @@ cat > "$OUTPUT_FILE" <<EOF
                 font-size: 1.8rem;
             }
             
+            .tag-info {
+                font-size: 1rem;
+                padding: 8px 15px;
+                max-width: 300px;
+            }
+            
             .action-btn {
                 padding: 10px 18px;
                 font-size: 0.9rem;
@@ -540,11 +549,7 @@ cat > "$OUTPUT_FILE" <<EOF
             <h1 class="report-title">Customer Service - Unit Test Report</h1>
             <p class="report-subtitle">Test Execution Summary • $CURRENT_DATE</p>
             
-            ${BUILD_INFO:+"
-            <div class='build-info'>
-                <i class='fas fa-code-branch'></i> $BUILD_INFO
-            </div>
-            "}
+            $TAG_INFO
             
             <div class="status-container">
                 <div class="status-card total-tests">
@@ -583,30 +588,10 @@ cat > "$OUTPUT_FILE" <<EOF
         <div class="test-summary">
             <div class="summary-header">
                 <h2 class="summary-title">Test Execution Details</h2>
-                <div class="execution-time">Total Duration: ${TIME}s</div>
+                <div class="execution-time">Total Duration: $SUREFIRE_TIME</div>
             </div>
-            
             <div class="summary-content">
-                <p>Unit test execution completed with the following metrics:</p>
-                
-                <div class="summary-grid">
-                    <div class="summary-item">
-                        <strong>Test Success Rate:</strong> 
-                        $([ $TOTAL_TESTS -gt 0 ] && echo "$(( (PASSED * 100) / TOTAL_TESTS ))%" || echo "N/A")
-                    </div>
-                    <div class="summary-item">
-                        <strong>Failure Rate:</strong> 
-                        $([ $TOTAL_TESTS -gt 0 ] && echo "$(( (FAILURES * 100) / TOTAL_TESTS ))%" || echo "N/A")
-                    </div>
-                    <div class="summary-item">
-                        <strong>Test Density:</strong> 
-                        $([ $(echo "$TIME > 0" | bc -l) -eq 1 ] && echo "$(echo "scale=2; $TOTAL_TESTS / $TIME" | bc) tests/sec" || echo "N/A")
-                    </div>
-                    <div class="summary-item">
-                        <strong>Execution Efficiency:</strong> 
-                        $([ $TOTAL_TESTS -gt 0 ] && echo "$(echo "scale=2; $TIME / $TOTAL_TESTS" | bc) sec/test" || echo "N/A")
-                    </div>
-                </div>
+                <p>Unit test execution completed with the above results.</p>
             </div>
         </div>
         
