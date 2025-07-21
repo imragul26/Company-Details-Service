@@ -53,6 +53,28 @@ done < <(find "$INPUT_DIR" -name "TEST-*.xml")
 # Calculate passed tests
 PASSED=$((TOTAL_TESTS - FAILURES - ERRORS - SKIPPED))
 
+# Extract total time from surefire.html if available
+SUREFIRE_TIME=""
+if [ -f "$STANDARD_REPORT" ]; then
+    SUREFIRE_TIME=$(awk '
+        BEGIN {RS="</tr>"; FS="</td>"; time_found=0}
+        /<th>Tests<\/th>/ {time_found=1}
+        time_found && /<td>[0-9.]/ {
+            for(i=1; i<=NF; i++) {
+                if ($i ~ /<td>[0-9.]/ && $i ~ / s<\/td>/) {
+                    gsub(/.*<td>| s<.*/, "", $i)
+                    time_val = $i
+                    exit
+                }
+            }
+        }
+        END {if (time_val) print time_val " s"}
+    ' "$STANDARD_REPORT")
+fi
+
+# If not found, use simple fallback
+[ -z "$SUREFIRE_TIME" ] && SUREFIRE_TIME="N/A"
+
 # 2. Get HTML report content with replacements
 REPORT_CONTENT=""
 if [ -f "$STANDARD_REPORT" ]; then
