@@ -6,6 +6,20 @@ OUTPUT_FILE="$2" # Output HTML file (target/reports/test-report.html)
 CURRENT_DATE=$(date '+%Y-%m-%d %H:%M:%S')
 STANDARD_REPORT="$(dirname "$OUTPUT_FILE")/surefire.html"
 
+# Get build information from environment variables
+BUILD_INFO=""
+if [ -n "$GIT_BRANCH" ]; then
+    BUILD_INFO+="Branch: $GIT_BRANCH"
+fi
+if [ -n "$GIT_TAG" ]; then
+    [ -n "$BUILD_INFO" ] && BUILD_INFO+=" • "
+    BUILD_INFO+="Tag: $GIT_TAG"
+fi
+if [ -n "$BUILD_NUMBER" ]; then
+    [ -n "$BUILD_INFO" ] && BUILD_INFO+=" • "
+    BUILD_INFO+="Build: $BUILD_NUMBER"
+fi
+
 # Initialize counts
 TOTAL_TESTS=0
 FAILURES=0
@@ -13,7 +27,7 @@ ERRORS=0
 SKIPPED=0
 TIME=0
 
-# Process all XML files (updated aggregation logic)
+# Process all XML files
 while IFS= read -r xml_file; do
     while read -r line; do
         case $line in
@@ -38,17 +52,6 @@ done < <(find "$INPUT_DIR" -name "TEST-*.xml")
 
 # Calculate passed tests
 PASSED=$((TOTAL_TESTS - FAILURES - ERRORS - SKIPPED))
-
-# Calculate percentages
-if [ $TOTAL_TESTS -gt 0 ]; then
-    PASSED_PERCENT=$((PASSED * 100 / TOTAL_TESTS))
-    FAILED_PERCENT=$(((FAILURES + ERRORS) * 100 / TOTAL_TESTS))
-    SKIPPED_PERCENT=$((SKIPPED * 100 / TOTAL_TESTS))
-else
-    PASSED_PERCENT=0
-    FAILED_PERCENT=0
-    SKIPPED_PERCENT=0
-fi
 
 # 2. Get HTML report content with replacements
 REPORT_CONTENT=""
@@ -84,7 +87,6 @@ cat > "$OUTPUT_FILE" <<EOF
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Customer Service - Unit Test Report</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         /* Modern CSS Reset */
         * {
@@ -107,10 +109,6 @@ cat > "$OUTPUT_FILE" <<EOF
             --success: #4CAF50;
             --warning: #FFC107;
             --danger: #e63946;
-            --chart-passed: #4CAF50;
-            --chart-failed: #e63946;
-            --chart-skipped: #FFC107;
-            --chart-error: #ff6b6b;
         }
         
         body {
@@ -164,7 +162,14 @@ cat > "$OUTPUT_FILE" <<EOF
             font-size: 1.3rem;
             opacity: 0.9;
             max-width: 800px;
-            margin: 0 auto 20px;
+            margin: 0 auto 10px;
+        }
+        
+        .build-info {
+            font-size: 1.1rem;
+            opacity: 0.85;
+            margin-bottom: 15px;
+            font-weight: 500;
         }
         
         /* Status Cards */
@@ -185,56 +190,28 @@ cat > "$OUTPUT_FILE" <<EOF
             backdrop-filter: blur(5px);
             border: 1px solid rgba(255, 255, 255, 0.1);
             transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-            cursor: pointer;
         }
         
         .status-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-            background: rgba(255, 255, 255, 0.25);
         }
         
         .status-card h3 {
             font-size: 1.1rem;
             color: rgba(255, 255, 255, 0.85);
             margin-bottom: 10px;
-            position: relative;
-            z-index: 2;
         }
         
         .status-card .value {
             font-size: 2.2rem;
             font-weight: 700;
-            position: relative;
-            z-index: 2;
         }
         
         .total-tests .value { color: white; }
         .passed-tests .value { color: var(--accent); }
         .failed-tests .value { color: #ff9aa2; }
         .skipped-tests .value { color: var(--warning); }
-        
-        /* Progress ring styles */
-        .progress-ring {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            width: 40px;
-            height: 40px;
-            z-index: 1;
-            opacity: 0.7;
-        }
-        
-        .progress-ring-circle {
-            stroke: var(--accent);
-            stroke-width: 3;
-            fill: none;
-            stroke-linecap: round;
-            transform: rotate(-90deg);
-            transform-origin: 50% 50%;
-        }
         
         /* Badges & Buttons */
         .badge {
@@ -296,17 +273,29 @@ cat > "$OUTPUT_FILE" <<EOF
             background: var(--card-bg);
             border-radius: 15px;
             box-shadow: var(--shadow);
-            padding: 30px;
+            padding: 25px 30px;
             margin-bottom: 30px;
-            position: relative;
-            overflow: hidden;
+        }
+        
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .summary-item {
+            background: #f8f9ff;
+            border-radius: 10px;
+            padding: 15px;
+            border-left: 4px solid var(--accent);
         }
         
         .summary-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             padding-bottom: 15px;
             border-bottom: 1px solid var(--border);
         }
@@ -320,14 +309,6 @@ cat > "$OUTPUT_FILE" <<EOF
         .summary-content {
             line-height: 1.8;
             color: var(--text-secondary);
-        }
-        
-        /* Chart container */
-        .chart-container {
-            display: flex;
-            justify-content: center;
-            margin: 30px 0;
-            height: 120px;
         }
         
         /* Original Report Styling */
@@ -354,6 +335,8 @@ cat > "$OUTPUT_FILE" <<EOF
             margin-bottom: 25px;
             padding-bottom: 15px;
             border-bottom: 3px solid var(--accent);
+            font-weight: 600;
+            font-family: 'Segoe UI', 'Roboto', sans-serif;
         }
         
         .report-content h2 {
@@ -362,6 +345,21 @@ cat > "$OUTPUT_FILE" <<EOF
             margin: 40px 0 25px;
             padding-bottom: 10px;
             border-bottom: 2px solid var(--border);
+            font-weight: 600;
+            font-family: 'Segoe UI', 'Roboto', sans-serif;
+        }
+        
+        /* Style report links */
+        .report-content a {
+            color: #1a5fb4;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+        
+        .report-content a:hover {
+            color: var(--accent);
+            text-decoration: underline;
         }
         
         .report-content table {
@@ -426,7 +424,7 @@ cat > "$OUTPUT_FILE" <<EOF
             gap: 10px;
         }
         
-        /* FIX: Add this rule to hide images in embedded report */
+        /* Hide images in embedded report */
         .report-content img {
             display: none !important;
         }
@@ -473,12 +471,6 @@ cat > "$OUTPUT_FILE" <<EOF
             to { opacity: 1; transform: translateY(0); }
         }
         
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
-        
         .status-card {
             animation: fadeIn 0.6s ease forwards;
             opacity: 0;
@@ -488,10 +480,6 @@ cat > "$OUTPUT_FILE" <<EOF
         .status-card:nth-child(2) { animation-delay: 0.2s; }
         .status-card:nth-child(3) { animation-delay: 0.3s; }
         .status-card:nth-child(4) { animation-delay: 0.4s; }
-        
-        .badge {
-            animation: pulse 2s infinite;
-        }
         
         /* Responsive Design */
         @media (max-width: 768px) {
@@ -520,10 +508,6 @@ cat > "$OUTPUT_FILE" <<EOF
             .report-content {
                 padding: 25px;
             }
-            
-            .chart-container {
-                height: 100px;
-            }
         }
     </style>
 </head>
@@ -534,32 +518,26 @@ cat > "$OUTPUT_FILE" <<EOF
             <h1 class="report-title">Customer Service - Unit Test Report</h1>
             <p class="report-subtitle">Test Execution Summary • $CURRENT_DATE</p>
             
+            ${BUILD_INFO:+"
+            <div class='build-info'>
+                <i class='fas fa-code-branch'></i> $BUILD_INFO
+            </div>
+            "}
+            
             <div class="status-container">
                 <div class="status-card total-tests">
-                    <svg class="progress-ring" viewBox="0 0 42 42">
-                        <circle class="progress-ring-circle" stroke="#ffffff" stroke-dasharray="100, 100" cx="21" cy="21" r="15.9"></circle>
-                    </svg>
                     <h3>Total Tests</h3>
                     <div class="value">$TOTAL_TESTS</div>
                 </div>
                 <div class="status-card passed-tests">
-                    <svg class="progress-ring" viewBox="0 0 42 42">
-                        <circle class="progress-ring-circle" stroke-dasharray="$PASSED_PERCENT, 100" cx="21" cy="21" r="15.9"></circle>
-                    </svg>
                     <h3>Passed</h3>
                     <div class="value">$PASSED</div>
                 </div>
                 <div class="status-card failed-tests">
-                    <svg class="progress-ring" viewBox="0 0 42 42">
-                        <circle class="progress-ring-circle" stroke="#ff9aa2" stroke-dasharray="$FAILED_PERCENT, 100" cx="21" cy="21" r="15.9"></circle>
-                    </svg>
                     <h3>Failed</h3>
                     <div class="value">$FAILURES</div>
                 </div>
                 <div class="status-card skipped-tests">
-                    <svg class="progress-ring" viewBox="0 0 42 42">
-                        <circle class="progress-ring-circle" stroke="#FFC107" stroke-dasharray="$SKIPPED_PERCENT, 100" cx="21" cy="21" r="15.9"></circle>
-                    </svg>
                     <h3>Skipped</h3>
                     <div class="value">$SKIPPED</div>
                 </div>
@@ -585,11 +563,27 @@ cat > "$OUTPUT_FILE" <<EOF
                 <h2 class="summary-title">Test Execution Details</h2>
                 <div class="execution-time">Total Duration: ${TIME}s</div>
             </div>
+            
             <div class="summary-content">
-                <p>Unit test execution completed with the above results. Below is the test distribution:</p>
+                <p>Unit test execution completed with the following metrics:</p>
                 
-                <div class="chart-container">
-                    <canvas id="testDistributionChart"></canvas>
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <strong>Test Success Rate:</strong> 
+                        $([ $TOTAL_TESTS -gt 0 ] && echo "$(( (PASSED * 100) / TOTAL_TESTS ))%" || echo "N/A")
+                    </div>
+                    <div class="summary-item">
+                        <strong>Failure Rate:</strong> 
+                        $([ $TOTAL_TESTS -gt 0 ] && echo "$(( (FAILURES * 100) / TOTAL_TESTS ))%" || echo "N/A")
+                    </div>
+                    <div class="summary-item">
+                        <strong>Test Density:</strong> 
+                        $([ $(echo "$TIME > 0" | bc -l) -eq 1 ] && echo "$(echo "scale=2; $TOTAL_TESTS / $TIME" | bc) tests/sec" || echo "N/A")
+                    </div>
+                    <div class="summary-item">
+                        <strong>Execution Efficiency:</strong> 
+                        $([ $TOTAL_TESTS -gt 0 ] && echo "$(echo "scale=2; $TIME / $TOTAL_TESTS" | bc) sec/test" || echo "N/A")
+                    </div>
                 </div>
             </div>
         </div>
@@ -625,68 +619,6 @@ cat > "$OUTPUT_FILE" <<EOF
                 } else if (text.includes('ERROR') || text.includes('Error')) {
                     cell.classList.add('test-error');
                 }
-            });
-            
-            // Create test distribution chart
-            const ctx = document.getElementById('testDistributionChart').getContext('2d');
-            new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Passed', 'Failed', 'Skipped'],
-                    datasets: [{
-                        data: [$PASSED, $FAILURES, $SKIPPED],
-                        backgroundColor: [
-                            '#4CAF50',
-                            '#e63946',
-                            '#FFC107'
-                        ],
-                        borderColor: '#ffffff',
-                        borderWidth: 2,
-                        hoverOffset: 15
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                font: {
-                                    size: 12
-                                },
-                                padding: 20
-                            }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const label = context.label || '';
-                                    const value = context.raw || 0;
-                                    const total = $TOTAL_TESTS;
-                                    const percentage = total ? Math.round((value / total) * 100) : 0;
-                                    return \`\${label}: \${value} tests (\${percentage}%)\`;
-                                }
-                            }
-                        }
-                    },
-                    cutout: '60%'
-                }
-            });
-            
-            // Animate progress rings
-            document.querySelectorAll('.progress-ring-circle').forEach(circle => {
-                const radius = circle.r.baseVal.value;
-                const circumference = 2 * Math.PI * radius;
-                
-                circle.style.strokeDasharray = \`\${circumference} \${circumference}\`;
-                circle.style.strokeDashoffset = circumference;
-                
-                const offset = circumference - (parseFloat(circle.getAttribute('stroke-dasharray').split(',')[0] / 100) * circumference;
-                setTimeout(() => {
-                    circle.style.transition = 'stroke-dashoffset 1s ease-in-out';
-                    circle.style.strokeDashoffset = offset;
-                }, 500);
             });
         });
     </script>
