@@ -14,127 +14,73 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 📝 Generate release notes with PR and direct commit messages
-        id: generate-notes
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const version = process.env.GITHUB_REF.replace('refs/tags/v', '');
+      - name: 🔍 Debug: Check GitHub context
+        run: |
+          echo "Repository: ${{ github.repository }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
 
-            // Find previous tag (by semantic version)
-            let previousTag = null;
-            try {
-              const allTags = await github.paginate(
-                github.rest.repos.listTags,
-                { owner: context.repo.owner, repo: context.repo.repo, per_page: 100 }
-              );
-              // Remove the current tag, sort others semver-descending
-              const semver = require('semver');
-              const tags = allTags
-                .filter(t => t.name !== `v${version}` && semver.valid(t.name))
-                .sort((a, b) => semver.rcompare(a.name, b.name));
-              previousTag = tags.length > 0 ? tags[0].name : null;
-            } catch (e) {
-              core.warning('Failed to determine previous tag, using null');
-            }
+      - name: 📝 Get ALL PRs and their commits
+        id: get-commits
+        run: |
+          # Install GitHub CLI
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt update
+          sudo apt install gh -y
 
-            if (!previousTag) {
-              core.setOutput("result", "First release, no previous tag found.");
-              return;
-            }
+          # Get merged PRs
+          echo "Getting merged PRs..."
+          PRS=$(gh pr list --state merged --json number,title,url --limit 20)
+          echo "Found PRs: $PRS"
 
-            // Compare commits between previous and current tag
-            const compare = await github.rest.repos.compareCommits({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              base: previousTag,
-              head: `v${version}`,
-            });
+          RELEASE_NOTES="## What's Changed\n\n"
 
-            const commitShas = compare.data.commits.map(c => c.sha);
+          # Process each PR
+          echo "$PRS" | jq -c '.[]' | while read PR; do
+            PR_NUMBER=$(echo "$PR" | jq -r '.number')
+            PR_TITLE=$(echo "$PR" | jq -r '.title')
+            PR_URL=$(echo "$PR" | jq -r '.url')
+            
+            echo "Processing PR #$PR_NUMBER: $PR_TITLE"
+            
+            # Get commits for this PR using GitHub CLI
+            COMMITS=$(gh pr view "$PR_NUMBER" --json commits --jq '.commits[].messageHeadline' 2>/dev/null || echo "")
+            
+            RELEASE_NOTES+="* $PR_TITLE in $PR_URL\n"
+            
+            if [ -n "$COMMITS" ] && [ "$COMMITS" != "null" ]; then
+              RELEASE_NOTES+="\n  **Commits:**\n"
+              echo "$COMMITS" | while read -r COMMIT; do
+                RELEASE_NOTES+="  • $COMMIT\n"
+              done
+              RELEASE_NOTES+="\n"
+            else
+              RELEASE_NOTES+="  • No commit messages available\n\n"
+            fi
+          done
 
-            // Map to track PRs and their commits
-            let prMap = new Map();
-            let prCommitShas = new Set();
+          # Add changelog
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          RELEASE_NOTES+="\n**Full Changelog**: https://github.com/${{ github.repository }}/compare/1.0.0...v$VERSION"
 
-            for (const sha of commitShas) {
-              const { data: prs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                commit_sha: sha
-              });
-              for (const pr of prs) {
-                if (pr.merged_at && !prMap.has(pr.number)) {
-                  prMap.set(pr.number, pr);
-                }
-              }
-            }
+          echo "RELEASE_NOTES<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$RELEASE_NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-            let releaseNotes = "## 🚀 What's Changed\n\n";
-            let prCount = 0;
+      - name: 📄 Show generated notes
+        run: |
+          echo "=== GENERATED NOTES ==="
+          echo '${{ steps.get-commits.outputs.RELEASE_NOTES }}'
+          echo "=== END ==="
 
-            // List PRs with their commits
-            for (const [prNumber, pr] of prMap.entries()) {
-              prCount++;
-              releaseNotes += `* **${pr.title}** by @${pr.user.login} in [#${pr.number}](${pr.html_url})\n`;
-
-              // Get ALL commits for this PR
-              const { data: commits } = await github.rest.pulls.listCommits({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: pr.number
-              });
-
-              if (commits && commits.length > 0) {
-                releaseNotes += "\n  **Commits:**\n";
-                for (const commit of commits) {
-                  prCommitShas.add(commit.sha);
-                  const message = commit.commit.message.trim().replace(/\n/g, " ");
-                  const shaShort = commit.sha.substring(0, 7);
-                  const author = commit.commit.author ? commit.commit.author.name : "unknown";
-                  releaseNotes += `  • ${shaShort}: ${message} (_${author}_)\n`;
-                }
-                releaseNotes += "\n";
-              } else {
-                releaseNotes += "  • No commit messages found\n\n";
-              }
-            }
-
-            // Find direct commits (not part of any PR)
-            let directCommits = compare.data.commits.filter(c => !prCommitShas.has(c.sha));
-            if (directCommits.length > 0) {
-              releaseNotes += "## 🔨 Direct Commits (not in a PR)\n";
-              for (const commit of directCommits) {
-                const shaShort = commit.sha.substring(0,7);
-                const message = commit.commit.message.trim().replace(/\n/g, " ");
-                const author = commit.commit.author ? commit.commit.author.name : "unknown";
-                releaseNotes += `  • ${shaShort}: ${message} (_${author}_)\n`;
-              }
-              releaseNotes += "\n";
-            }
-
-            if (prCount === 0 && directCommits.length === 0) {
-              releaseNotes += "No merged pull requests or direct commits found.\n\n";
-            }
-
-            releaseNotes += `**Full Changelog**: https://github.com/${context.repo.owner}/${context.repo.repo}/compare/${previousTag}...v${version}\n`;
-
-            core.setOutput("result", releaseNotes);
-
-      - name: 🚀 Create GitHub Release
+      - name: 🚀 Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
-          body: ${{ steps.generate-notes.outputs.result }}
+          body: ${{ steps.get-commits.outputs.RELEASE_NOTES }}
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 📋 Display generated notes for verification
-        run: |
-          echo "=== RELEASE NOTES GENERATED ==="
-          echo "${{ steps.generate-notes.outputs.result }}"
-          echo "=== END ==="
