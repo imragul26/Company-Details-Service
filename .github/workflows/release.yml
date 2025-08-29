@@ -1,0 +1,58 @@
+name: 🚀 Simple Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 📝 Get version from tag
+        id: get-version
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Release version: $VERSION"
+
+      - name: 📋 Generate release notes from git log
+        id: generate-notes
+        run: |
+          # Get previous tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 $(git rev-list --tags --skip=1 --max-count=1) 2>/dev/null || echo "initial")
+          
+          # Get all commits since previous tag
+          COMMITS=$(git log --pretty=format:"- **%h**: %s - _%an_" $PREVIOUS_TAG..HEAD)
+          
+          # Create release notes
+          NOTES="# Release v${{ steps.get-version.outputs.version }}\n\n"
+          NOTES+="## Commits\n\n"
+          
+          if [ -n "$COMMITS" ]; then
+            NOTES+="$COMMITS"
+          else
+            NOTES+="No new commits since last release."
+          fi
+          
+          NOTES+="\n\n**Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREVIOUS_TAG...v${{ steps.get-version.outputs.version }}"
+          
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: 🚀 Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: ${{ steps.generate-notes.outputs.notes }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
