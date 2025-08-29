@@ -14,7 +14,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 📝 Generate release notes from PR commit messages
+      - name: 📝 Generate release notes with PR and direct commit messages
         id: generate-notes
         uses: actions/github-script@v7
         with:
@@ -22,35 +22,42 @@ jobs:
           script: |
             const version = process.env.GITHUB_REF.replace('refs/tags/v', '');
 
-            // Get previous release tag for changelog link
-            let previousTag = '1.0.0';
+            // Find previous tag (by semantic version)
+            let previousTag = null;
             try {
-              const { data: releases } = await github.rest.repos.listReleases({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                per_page: 5
-              });
-              if (releases.length > 1) {
-                previousTag = releases[1].tag_name;
-              }
-            } catch (error) {
-              console.log('Using default previous tag:', previousTag);
+              const allTags = await github.paginate(
+                github.rest.repos.listTags,
+                { owner: context.repo.owner, repo: context.repo.repo, per_page: 100 }
+              );
+              // Remove the current tag, sort others semver-descending
+              const semver = require('semver');
+              const tags = allTags
+                .filter(t => t.name !== `v${version}` && semver.valid(t.name))
+                .sort((a, b) => semver.rcompare(a.name, b.name));
+              previousTag = tags.length > 0 ? tags[0].name : null;
+            } catch (e) {
+              core.warning('Failed to determine previous tag, using null');
             }
 
-            // Get all commits between previousTag and current tag
+            if (!previousTag) {
+              core.setOutput("result", "First release, no previous tag found.");
+              return;
+            }
+
+            // Compare commits between previous and current tag
             const compare = await github.rest.repos.compareCommits({
               owner: context.repo.owner,
               repo: context.repo.repo,
               base: previousTag,
-              head: `v${version}`
+              head: `v${version}`,
             });
 
             const commitShas = compare.data.commits.map(c => c.sha);
 
-            // Map to store PRs included in this release
+            // Map to track PRs and their commits
             let prMap = new Map();
+            let prCommitShas = new Set();
 
-            // For each commit, find associated PR (if any)
             for (const sha of commitShas) {
               const { data: prs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
                 owner: context.repo.owner,
@@ -64,10 +71,10 @@ jobs:
               }
             }
 
-            // Build release notes
-            let releaseNotes = "## What's Changed\n\n";
+            let releaseNotes = "## 🚀 What's Changed\n\n";
             let prCount = 0;
 
+            // List PRs with their commits
             for (const [prNumber, pr] of prMap.entries()) {
               prCount++;
               releaseNotes += `* **${pr.title}** by @${pr.user.login} in [#${pr.number}](${pr.html_url})\n`;
@@ -82,9 +89,10 @@ jobs:
               if (commits && commits.length > 0) {
                 releaseNotes += "\n  **Commits:**\n";
                 for (const commit of commits) {
-                  const message = commit.commit.message.trim();
+                  prCommitShas.add(commit.sha);
+                  const message = commit.commit.message.trim().replace(/\n/g, " ");
                   const shaShort = commit.sha.substring(0, 7);
-                  const author = commit.commit.author.name;
+                  const author = commit.commit.author ? commit.commit.author.name : "unknown";
                   releaseNotes += `  • ${shaShort}: ${message} (_${author}_)\n`;
                 }
                 releaseNotes += "\n";
@@ -93,14 +101,25 @@ jobs:
               }
             }
 
-            if (prCount === 0) {
-              releaseNotes += "No merged pull requests found.\n\n";
+            // Find direct commits (not part of any PR)
+            let directCommits = compare.data.commits.filter(c => !prCommitShas.has(c.sha));
+            if (directCommits.length > 0) {
+              releaseNotes += "## 🔨 Direct Commits (not in a PR)\n";
+              for (const commit of directCommits) {
+                const shaShort = commit.sha.substring(0,7);
+                const message = commit.commit.message.trim().replace(/\n/g, " ");
+                const author = commit.commit.author ? commit.commit.author.name : "unknown";
+                releaseNotes += `  • ${shaShort}: ${message} (_${author}_)\n`;
+              }
+              releaseNotes += "\n";
             }
 
-            // Add changelog link
+            if (prCount === 0 && directCommits.length === 0) {
+              releaseNotes += "No merged pull requests or direct commits found.\n\n";
+            }
+
             releaseNotes += `**Full Changelog**: https://github.com/${context.repo.owner}/${context.repo.repo}/compare/${previousTag}...v${version}\n`;
 
-            // Set output for next steps
             core.setOutput("result", releaseNotes);
 
       - name: 🚀 Create GitHub Release
