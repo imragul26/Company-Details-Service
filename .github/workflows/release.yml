@@ -1,4 +1,4 @@
-name: 🚀 Simple Release
+name: 🚀 Release with Commit Messages
 
 on:
   push:
@@ -14,44 +14,76 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 📝 Get version from tag
-        id: get-version
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Release version: $VERSION"
-
-      - name: 📋 Generate release notes from git log
+      - name: 📝 Generate release notes with commit messages
         id: generate-notes
-        run: |
-          # Get previous tag
-          PREVIOUS_TAG=$(git describe --tags --abbrev=0 $(git rev-list --tags --skip=1 --max-count=1) 2>/dev/null || echo "initial")
-          
-          # Get all commits since previous tag
-          COMMITS=$(git log --pretty=format:"- **%h**: %s - _%an_" $PREVIOUS_TAG..HEAD)
-          
-          # Create release notes
-          NOTES="# Release v${{ steps.get-version.outputs.version }}\n\n"
-          NOTES+="## Commits\n\n"
-          
-          if [ -n "$COMMITS" ]; then
-            NOTES+="$COMMITS"
-          else
-            NOTES+="No new commits since last release."
-          fi
-          
-          NOTES+="\n\n**Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREVIOUS_TAG...v${{ steps.get-version.outputs.version }}"
-          
-          echo "notes<<EOF" >> $GITHUB_OUTPUT
-          echo -e "$NOTES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Get the tag version
+            const version = process.env.GITHUB_REF.replace('refs/tags/v', '');
+            
+            // Get previous tag
+            let previousTag = '1.0.0';
+            try {
+              const { data: releases } = await github.rest.repos.listReleases({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per_page: 5
+              });
+              if (releases.length > 1) {
+                previousTag = releases[1].tag_name.replace('v', '');
+              }
+            } catch (error) {
+              console.log('Using default previous tag:', previousTag);
+            }
+
+            // Get merged PRs
+            const { data: pulls } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              sort: 'updated',
+              direction: 'desc',
+              per_page: 20
+            });
+
+            let releaseNotes = "## What's Changed\n\n";
+
+            for (const pr of pulls) {
+              if (pr.merged_at) {
+                // Get commits for this PR
+                const { data: commits } = await github.rest.pulls.listCommits({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pr.number
+                });
+
+                // Add PR title
+                releaseNotes += `* ${pr.title} by @${pr.user.login} in ${pr.html_url}\n`;
+                
+                // Add commit messages
+                if (commits.length > 0) {
+                  releaseNotes += "\n  **Commits:**\n";
+                  commits.forEach(commit => {
+                    const message = commit.commit.message.split('\n')[0];
+                    releaseNotes += `  • ${message}\n`;
+                  });
+                  releaseNotes += "\n";
+                }
+              }
+            }
+
+            releaseNotes += `\n**Full Changelog**: https://github.com/${context.repo.owner}/${context.repo.repo}/compare/${previousTag}...${version}`;
+
+            return releaseNotes;
 
       - name: 🚀 Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
-          body: ${{ steps.generate-notes.outputs.notes }}
+          body: ${{ steps.generate-notes.outputs.result }}
           draft: false
           prerelease: false
         env:
