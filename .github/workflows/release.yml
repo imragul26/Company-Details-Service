@@ -14,16 +14,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 📝 Generate release notes with commit messages
+      - name: 📝 Extract ALL commit messages from PRs
         id: generate-notes
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            // Get the tag version
             const version = process.env.GITHUB_REF.replace('refs/tags/v', '');
             
-            // Get previous tag
+            // Get previous release tag for changelog link
             let previousTag = '1.0.0';
             try {
               const { data: releases } = await github.rest.repos.listReleases({
@@ -32,27 +31,32 @@ jobs:
                 per_page: 5
               });
               if (releases.length > 1) {
-                previousTag = releases[1].tag_name.replace('v', '');
+                previousTag = releases[1].tag_name;
               }
             } catch (error) {
               console.log('Using default previous tag:', previousTag);
             }
 
-            // Get merged PRs
+            // Get all merged PRs
             const { data: pulls } = await github.rest.pulls.list({
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'closed',
               sort: 'updated',
               direction: 'desc',
-              per_page: 20
+              per_page: 50
             });
 
             let releaseNotes = "## What's Changed\n\n";
+            let prCount = 0;
 
+            // Process each PR to extract ALL commit messages
             for (const pr of pulls) {
               if (pr.merged_at) {
-                // Get commits for this PR
+                prCount++;
+                console.log(`Processing PR #${pr.number} with title: ${pr.title}`);
+
+                // ✅ KEY: Get ALL commits from this specific PR
                 const { data: commits } = await github.rest.pulls.listCommits({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
@@ -60,25 +64,41 @@ jobs:
                 });
 
                 // Add PR title
-                releaseNotes += `* ${pr.title} by @${pr.user.login} in ${pr.html_url}\n`;
+                releaseNotes += `* **${pr.title}** by @${pr.user.login} in [#${pr.number}](${pr.html_url})\n`;
                 
-                // Add commit messages
-                if (commits.length > 0) {
+                // ✅ Add ALL commit messages from this PR
+                if (commits && commits.length > 0) {
                   releaseNotes += "\n  **Commits:**\n";
+                  
+                  // Loop through EACH commit in the PR
                   commits.forEach(commit => {
+                    // Get the full commit message (first line only for clarity)
                     const message = commit.commit.message.split('\n')[0];
-                    releaseNotes += `  • ${message}\n`;
+                    const shaShort = commit.sha.substring(0, 7);
+                    const author = commit.commit.author.name;
+                    
+                    // Add each commit message to release notes
+                    releaseNotes += `  • ${shaShort}: ${message} (_${author}_)\n`;
                   });
+                  
                   releaseNotes += "\n";
+                } else {
+                  releaseNotes += "  • No commit messages found\n\n";
                 }
               }
             }
 
-            releaseNotes += `\n**Full Changelog**: https://github.com/${context.repo.owner}/${context.repo.repo}/compare/${previousTag}...${version}`;
+            if (prCount === 0) {
+              releaseNotes += "No merged pull requests found.\n\n";
+            }
 
+            // Add changelog link
+            releaseNotes += `**Full Changelog**: https://github.com/${context.repo.owner}/${context.repo.repo}/compare/${previousTag}...v${version}\n`;
+
+            console.log(`Processed ${prCount} PRs with commit messages`);
             return releaseNotes;
 
-      - name: 🚀 Create Release
+      - name: 🚀 Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
@@ -88,3 +108,9 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📋 Display generated notes for verification
+        run: |
+          echo "=== RELEASE NOTES GENERATED ==="
+          echo "${{ steps.generate-notes.outputs.result }}"
+          echo "=== END ==="
