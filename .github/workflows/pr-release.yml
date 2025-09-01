@@ -29,10 +29,10 @@ jobs:
           echo "## What's Changed" >> $GITHUB_ENV
           echo "" >> $GITHUB_ENV
 
-          echo "$COMMITS" | awk -F'|' '{print "* " "[`" substr($1, 1, 7) "`]" "(" "https://github.com/'${{ github.repository }}'/commit/" $1 ")" " " $2}' | grep '^.*feat:' | sed 's/^.*feat:/* ✨ Feat:/' >> $GITHUB_ENV
-          echo "$COMMITS" | awk -F'|' '{print "* " "[`" substr($1, 1, 7) "`]" "(" "https://github.com/'${{ github.repository }}'/commit/" $1 ")" " " $2}' | grep -E '^(.*fix:|.*bug:)' | sed -E 's/^.*(fix|bug):/* 🐛 Fix:/' >> $GITHUB_ENV
-          echo "$COMMITS" | awk -F'|' '{print "* " "[`" substr($1, 1, 7) "`]" "(" "https://github.com/'${{ github.repository }}'/commit/" $1 ")" " " $2}' | grep -E '^(.*chore:|.*refactor:|.*style:)' | sed -E 's/^.*(chore|refactor|style):/* 🛠️ Maintenance:/' >> $GITHUB_ENV
-          echo "$COMMITS" | awk -F'|' '{print "* " "[`" substr($1, 1, 7) "`]" "(" "https://github.com/'${{ github.repository }}'/commit/" $1 ")" " " $2}' | grep '^.*docs:' | sed 's/^.*docs:/* 📚 Docs:/' >> $GITHUB_ENV
+          echo "$COMMITS" | awk -F'|' '{print "* [`" substr($1, 1, 7) "`](" "https://github.com/'${{ github.repository }}'/commit/" $1 ")" $2}' | grep 'feat:' | sed 's/feat:/* ✨ Feat:/' >> $GITHUB_ENV
+          echo "$COMMITS" | awk -F'|' '{print "* [`" substr($1, 1, 7) "`](" "https://github.com/'${{ github.repository }}'/commit/" $1 ")" $2}' | grep -E '^(fix|bug):' | sed -E 's/^(fix|bug):/* 🐛 Fix:/' >> $GITHUB_ENV
+          echo "$COMMITS" | awk -F'|' '{print "* [`" substr($1, 1, 7) "`](" "https://github.com/'${{ github.repository }}'/commit/" $1 ")" $2}' | grep -E '^(chore|refactor|style):' | sed -E 's/^(chore|refactor|style):/* 🛠️ Maintenance:/' >> $GITHUB_ENV
+          echo "$COMMITS" | awk -F'|' '{print "* [`" substr($1, 1, 7) "`](" "https://github.com/'${{ github.repository }}'/commit/" $1 ")" $2}' | grep 'docs:' | sed 's/docs:/* 📚 Docs:/' >> $GITHUB_ENV
 
           echo "" >> $GITHUB_ENV
           echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
