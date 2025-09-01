@@ -13,12 +13,29 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: read
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Get Release Type
+        id: get_type
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          if [[ "$PR_TITLE" =~ ^feat: ]]; then
+            echo "release_type=✨ Feat" >> $GITHUB_ENV
+          elif [[ "$PR_TITLE" =~ ^(fix|bug): ]]; then
+            echo "release_type=🐛 Fix" >> $GITHUB_ENV
+          elif [[ "$PR_TITLE" =~ ^docs: ]]; then
+            echo "release_type=📚 Docs" >> $GITHUB_ENV
+          elif [[ "$PR_TITLE" =~ ^(chore|refactor|style): ]]; then
+            echo "release_type=🛠️ Maintenance" >> $GITHUB_ENV
+          else
+            echo "release_type=Other" >> $GITHUB_ENV
+          fi
 
       - name: Generate formatted release notes
         id: generate_notes
@@ -30,37 +47,45 @@ jobs:
           echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
           echo "## What's Changed" >> $GITHUB_ENV
           echo "" >> $GITHUB_ENV
+          
+          # Add the category heading based on the PR title
+          echo "### ${{ env.release_type }}" >> $GITHUB_ENV
+          echo "" >> $GITHUB_ENV
 
           echo "$COMMITS" | while read -r line; do
               commit_hash=$(echo "$line" | cut -d'|' -f1)
               commit_msg=$(echo "$line" | cut -d'|' -f2)
               
               # Use GitHub API to get the author's login
-              # We're making a REST API call to get the commit details
               author_login=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
                                  "https://api.github.com/repos/${{ github.repository }}/commits/$commit_hash" | jq -r '.author.login')
 
-              # Default to the commit's name if a login isn't found
               if [ "$author_login" == "null" ]; then
                   author_name=$(git log -1 --pretty=format:"%an" "$commit_hash")
                   contributor_text=" by @${author_name}"
-                  contributor_link="https://github.com/${author_name}"
               else
                   contributor_text=" by [@${author_login}](https://github.com/${author_login})"
               fi
 
               link="https://github.com/${{ github.repository }}/commit/${commit_hash}"
               
-              if [[ "$commit_msg" =~ ^feat: ]]; then
-                echo "* ✨ Feat: ${commit_msg:5} ${contributor_text} in ${link}" >> $GITHUB_ENV
-              elif [[ "$commit_msg" =~ ^(fix|bug): ]]; then
-                echo "* 🐛 Fix: ${commit_msg:4} ${contributor_text} in ${link}" >> $GITHUB_ENV
-              elif [[ "$commit_msg" =~ ^(chore|refactor|style): ]]; then
-                echo "* 🛠️ Maintenance: ${commit_msg:9} ${contributor_text} in ${link}" >> $GITHUB_ENV
-              elif [[ "$commit_msg" =~ ^docs: ]]; then
-                echo "* 📚 Docs: ${commit_msg:5} ${contributor_text} in ${link}" >> $GITHUB_ENV
+              # Only print commits of the matching type under the heading
+              if [[ "$commit_msg" =~ ^(feat:|fix:|bug:|docs:|chore:|refactor:|style:) ]]; then
+                type=$(echo "$commit_msg" | cut -d':' -f1)
+                body=$(echo "$commit_msg" | cut -d':' -f2-)
+                
+                # Check if the commit type matches the PR title type
+                if [[ "${{ env.release_type }}" == *"Feat"* && "$type" == "feat" ]] || \
+                   [[ "${{ env.release_type }}" == *"Fix"* && ("$type" == "fix" || "$type" == "bug") ]] || \
+                   [[ "${{ env.release_type }}" == *"Docs"* && "$type" == "docs" ]] || \
+                   [[ "${{ env.release_type }}" == *"Maintenance"* && ("$type" == "chore" || "$type" == "refactor" || "$type" == "style") ]]; then
+                  echo "* ${body} ${contributor_text} in ${link}" >> $GITHUB_ENV
+                fi
               else
-                echo "* ${commit_msg} ${contributor_text} in ${link}" >> $GITHUB_ENV
+                # Print non-conventional commits under "Other"
+                if [[ "${{ env.release_type }}" == "Other" ]]; then
+                  echo "* ${commit_msg} ${contributor_text} in ${link}" >> $GITHUB_ENV
+                fi
               fi
           done
 
