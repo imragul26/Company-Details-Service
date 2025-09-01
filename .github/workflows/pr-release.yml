@@ -29,10 +29,23 @@ jobs:
           echo "## What's Changed" >> $GITHUB_ENV
           echo "" >> $GITHUB_ENV
 
-          echo "$COMMITS" | awk -F'|' '{print "* " "[`" substr($1, 1, 7) "`]" "(" "https://github.com/'${{ github.repository }}'/commit/" $1 ")" " " $2}' | grep '^.*feat:' | sed 's/^.*feat:/* ✨ Feat:/' >> $GITHUB_ENV
-          echo "$COMMITS" | awk -F'|' '{print "* " "[`" substr($1, 1, 7) "`]" "(" "https://github.com/'${{ github.repository }}'/commit/" $1 ")" " " $2}' | grep -E '^(.*fix:|.*bug:)' | sed -E 's/^.*(fix|bug):/* 🐛 Fix:/' >> $GITHUB_ENV
-          echo "$COMMITS" | awk -F'|' '{print "* " "[`" substr($1, 1, 7) "`]" "(" "https://github.com/'${{ github.repository }}'/commit/" $1 ")" " " $2}' | grep -E '^(.*chore:|.*refactor:|.*style:)' | sed -E 's/^.*(chore|refactor|style):/* 🛠️ Maintenance:/' >> $GITHUB_ENV
-          echo "$COMMITS" | awk -F'|' '{print "* " "[`" substr($1, 1, 7) "`]" "(" "https://github.com/'${{ github.repository }}'/commit/" $1 ")" " " $2}' | grep '^.*docs:' | sed 's/^.*docs:/* 📚 Docs:/' >> $GITHUB_ENV
+          echo "$COMMITS" | awk -F'|' -v repo="${{ github.repository }}" '{
+            link="https://github.com/" repo "/commit/" $1;
+            commit_hash=substr($1, 1, 7);
+            commit_msg=$2;
+            
+            if (commit_msg ~ /^feat:/) {
+              print "* ✨ Feat: [`" commit_hash "`]" "(" link ") " substr(commit_msg, 6);
+            } else if (commit_msg ~ /^(fix|bug):/) {
+              print "* 🐛 Fix: [`" commit_hash "`]" "(" link ") " substr(commit_msg, 5);
+            } else if (commit_msg ~ /^(chore|refactor|style):/) {
+              print "* 🛠️ Maintenance: [`" commit_hash "`]" "(" link ") " substr(commit_msg, 10);
+            } else if (commit_msg ~ /^docs:/) {
+              print "* 📚 Docs: [`" commit_hash "`]" "(" link ") " substr(commit_msg, 6);
+            } else {
+              print "* [`" commit_hash "`]" "(" link ") " commit_msg;
+            }
+          }' >> $GITHUB_ENV
 
           echo "" >> $GITHUB_ENV
           echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
@@ -41,7 +54,6 @@ jobs:
       - name: Create release tag
         id: create_tag
         uses: softprops/action-gh-release@v1
-
         with:
           tag_name: "release-${{ github.run_number }}"
           name: "Release ${{ github.event.pull_request.title }}"
