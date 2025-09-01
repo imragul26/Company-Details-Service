@@ -35,18 +35,22 @@ jobs:
             author_name=$3;
             author_email=$4;
             
-            # Extract the GitHub username from the email or use a best-guess from the name
+            # Use a simple check to determine the username from the email
+            # This is the most common format for GitHub-generated commits
             if (author_email ~ /@users.noreply.github.com$/) {
               username = author_email;
               sub(/@users.noreply.github.com$/, "", username);
             } else {
-              # Fallback: create a user link from the name, replacing spaces with hyphens
+              # If the email isn't in the standard format, use the author's name
+              # and make it lowercase with no spaces for a best-guess URL
               username = tolower(author_name);
-              gsub(/ /, "-", username);
+              gsub(/ /, "", username);
             }
 
             link="https://github.com/" repo "/commit/" $1;
             contributor_link = "https://github.com/" username;
+            
+            # Use the author's full name in the displayed text for clarity
             contributor_text = " by [" "@" author_name "]" "(" contributor_link ")";
             
             if (commit_msg ~ /^feat:/) {
