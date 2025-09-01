@@ -89,7 +89,7 @@ class CompanyApplicationTests {
 
 		this.kafka.assertIsSatisfied();
 		this.kafka.reset();
-
+      
 	}
 
 }
