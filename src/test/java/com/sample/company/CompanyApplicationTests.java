@@ -21,6 +21,7 @@ import org.springframework.test.annotation.DirtiesContext.ClassMode;
 
 import com.schemas.EmployeeDetails;
 
+
 @EmbeddedKafka(partitions = 1, brokerProperties = { "listener=PLAINTEXT://localhost:9092",
 		"port=9092" }, kraft = false, topics = { "${kafka.topic}" })
 @SpringBootTest(classes = CompanyApplication.class)
