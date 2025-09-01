@@ -13,29 +13,32 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: read # Added permission to read PR data
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Get PR Commits
+        id: pr_commits
+        uses: tj-actions/pr-commits-to-json@v1.1
         with:
-          fetch-depth: 0
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          pull_request: ${{ github.event.pull_request.number }}
 
       - name: Generate formatted release notes
         id: generate_notes
         run: |
-          COMMITS=$(git log --pretty=format:"%H|%s" --no-merges --reverse ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+          COMMITS=$(echo '${{ steps.pr_commits.outputs.commits }}' | jq -r '.[].commit.message')
 
           echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
           echo "## What's Changed" >> $GITHUB_ENV
           echo "" >> $GITHUB_ENV
 
-          echo "$COMMITS" | awk -F'|' '{print "* [`" substr($1, 1, 7) "`](" "https://github.com/'${{ github.repository }}'/commit/" $1 ")" $2}' | grep 'feat:' | sed 's/feat:/* ✨ Feat:/' >> $GITHUB_ENV
-          echo "$COMMITS" | awk -F'|' '{print "* [`" substr($1, 1, 7) "`](" "https://github.com/'${{ github.repository }}'/commit/" $1 ")" $2}' | grep -E '^(fix|bug):' | sed -E 's/^(fix|bug):/* 🐛 Fix:/' >> $GITHUB_ENV
-          echo "$COMMITS" | awk -F'|' '{print "* [`" substr($1, 1, 7) "`](" "https://github.com/'${{ github.repository }}'/commit/" $1 ")" $2}' | grep -E '^(chore|refactor|style):' | sed -E 's/^(chore|refactor|style):/* 🛠️ Maintenance:/' >> $GITHUB_ENV
-          echo "$COMMITS" | awk -F'|' '{print "* [`" substr($1, 1, 7) "`](" "https://github.com/'${{ github.repository }}'/commit/" $1 ")" $2}' | grep 'docs:' | sed 's/docs:/* 📚 Docs:/' >> $GITHUB_ENV
-
+          echo "$COMMITS" | awk 'NR==1{OFS=""} {print "* `[<link_to_commit>]` " $0}' | grep 'feat:' | sed 's/feat:/* ✨ Feat:/' >> $GITHUB_ENV
+          echo "$COMMITS" | awk 'NR==1{OFS=""} {print "* `[<link_to_commit>]` " $0}' | grep -E '^(fix|bug):' | sed -E 's/^(fix|bug):/* 🐛 Fix:/' >> $GITHUB_ENV
+          echo "$COMMITS" | awk 'NR==1{OFS=""} {print "* `[<link_to_commit>]` " $0}' | grep -E '^(chore|refactor|style):' | sed -E 's/^(chore|refactor|style):/* 🛠️ Maintenance:/' >> $GITHUB_ENV
+          echo "$COMMITS" | awk 'NR==1{OFS=""} {print "* `[<link_to_commit>]` " $0}' | grep 'docs:' | sed 's/docs:/* 📚 Docs:/' >> $GITHUB_ENV
+          
           echo "" >> $GITHUB_ENV
-          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
+          echo "**Full Changelog**: ${{ github.event.pull_request.html_url }}" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
       - name: Create release tag
