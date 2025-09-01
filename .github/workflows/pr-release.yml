@@ -23,7 +23,7 @@ jobs:
       - name: Generate formatted release notes
         id: generate_notes
         run: |
-          COMMITS=$(git log --pretty=format:"%H|%s|%an" --no-merges --reverse ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+          COMMITS=$(git log --pretty=format:"%H|%s|%an|%ae" --no-merges --reverse ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
 
           echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
           echo "## What's Changed" >> $GITHUB_ENV
@@ -32,19 +32,33 @@ jobs:
           echo "$COMMITS" | awk -F'|' -v repo="${{ github.repository }}" '{
             commit_hash=substr($1, 1, 7);
             commit_msg=$2;
-            author=$3;
+            author_name=$3;
+            author_email=$4;
+            
+            # Extract the GitHub username from the email or use a best-guess from the name
+            if (author_email ~ /@users.noreply.github.com$/) {
+              username = author_email;
+              sub(/@users.noreply.github.com$/, "", username);
+            } else {
+              # Fallback: create a user link from the name, replacing spaces with hyphens
+              username = tolower(author_name);
+              gsub(/ /, "-", username);
+            }
+
             link="https://github.com/" repo "/commit/" $1;
+            contributor_link = "https://github.com/" username;
+            contributor_text = " by [" "@" author_name "]" "(" contributor_link ")";
             
             if (commit_msg ~ /^feat:/) {
-              print "* ✨ Feat: " substr(commit_msg, 6) " by @" author " in " link;
+              print "* ✨ Feat: " substr(commit_msg, 6) contributor_text " in " link;
             } else if (commit_msg ~ /^(fix|bug):/) {
-              print "* 🐛 Fix: " substr(commit_msg, 5) " by @" author " in " link;
+              print "* 🐛 Fix: " substr(commit_msg, 5) contributor_text " in " link;
             } else if (commit_msg ~ /^(chore|refactor|style):/) {
-              print "* 🛠️ Maintenance: " substr(commit_msg, 10) " by @" author " in " link;
+              print "* 🛠️ Maintenance: " substr(commit_msg, 10) contributor_text " in " link;
             } else if (commit_msg ~ /^docs:/) {
-              print "* 📚 Docs: " substr(commit_msg, 6) " by @" author " in " link;
+              print "* 📚 Docs: " substr(commit_msg, 6) contributor_text " in " link;
             } else {
-              print "* " commit_msg " by @" author " in " link;
+              print "* " commit_msg contributor_text " in " link;
             }
           }' >> $GITHUB_ENV
 
