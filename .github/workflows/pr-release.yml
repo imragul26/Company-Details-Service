@@ -22,49 +22,47 @@ jobs:
 
       - name: Generate formatted release notes
         id: generate_notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          COMMITS=$(git log --pretty=format:"%H|%s|%an|%ae" --no-merges --reverse ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
-
+          COMMITS=$(git log --pretty=format:"%H|%s" --no-merges --reverse ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+          
           echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
           echo "## What's Changed" >> $GITHUB_ENV
           echo "" >> $GITHUB_ENV
 
-          echo "$COMMITS" | awk -F'|' -v repo="${{ github.repository }}" '{
-            commit_hash=substr($1, 1, 7);
-            commit_msg=$2;
-            author_name=$3;
-            author_email=$4;
-            
-            # Use a simple check to determine the username from the email
-            # This is the most common format for GitHub-generated commits
-            if (author_email ~ /@users.noreply.github.com$/) {
-              username = author_email;
-              sub(/@users.noreply.github.com$/, "", username);
-            } else {
-              # If the email isn't in the standard format, use the author's name
-              # and make it lowercase with no spaces for a best-guess URL
-              username = tolower(author_name);
-              gsub(/ /, "", username);
-            }
+          echo "$COMMITS" | while read -r line; do
+              commit_hash=$(echo "$line" | cut -d'|' -f1)
+              commit_msg=$(echo "$line" | cut -d'|' -f2)
+              
+              # Use GitHub API to get the author's login
+              # We're making a REST API call to get the commit details
+              author_login=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                                 "https://api.github.com/repos/${{ github.repository }}/commits/$commit_hash" | jq -r '.author.login')
 
-            link="https://github.com/" repo "/commit/" $1;
-            contributor_link = "https://github.com/" username;
-            
-            # Use the author's full name in the displayed text for clarity
-            contributor_text = " by [" "@" author_name "]" "(" contributor_link ")";
-            
-            if (commit_msg ~ /^feat:/) {
-              print "* ✨ Feat: " substr(commit_msg, 6) contributor_text " in " link;
-            } else if (commit_msg ~ /^(fix|bug):/) {
-              print "* 🐛 Fix: " substr(commit_msg, 5) contributor_text " in " link;
-            } else if (commit_msg ~ /^(chore|refactor|style):/) {
-              print "* 🛠️ Maintenance: " substr(commit_msg, 10) contributor_text " in " link;
-            } else if (commit_msg ~ /^docs:/) {
-              print "* 📚 Docs: " substr(commit_msg, 6) contributor_text " in " link;
-            } else {
-              print "* " commit_msg contributor_text " in " link;
-            }
-          }' >> $GITHUB_ENV
+              # Default to the commit's name if a login isn't found
+              if [ "$author_login" == "null" ]; then
+                  author_name=$(git log -1 --pretty=format:"%an" "$commit_hash")
+                  contributor_text=" by @${author_name}"
+                  contributor_link="https://github.com/${author_name}"
+              else
+                  contributor_text=" by [@${author_login}](https://github.com/${author_login})"
+              fi
+
+              link="https://github.com/${{ github.repository }}/commit/${commit_hash}"
+              
+              if [[ "$commit_msg" =~ ^feat: ]]; then
+                echo "* ✨ Feat: ${commit_msg:5} ${contributor_text} in ${link}" >> $GITHUB_ENV
+              elif [[ "$commit_msg" =~ ^(fix|bug): ]]; then
+                echo "* 🐛 Fix: ${commit_msg:4} ${contributor_text} in ${link}" >> $GITHUB_ENV
+              elif [[ "$commit_msg" =~ ^(chore|refactor|style): ]]; then
+                echo "* 🛠️ Maintenance: ${commit_msg:9} ${contributor_text} in ${link}" >> $GITHUB_ENV
+              elif [[ "$commit_msg" =~ ^docs: ]]; then
+                echo "* 📚 Docs: ${commit_msg:5} ${contributor_text} in ${link}" >> $GITHUB_ENV
+              else
+                echo "* ${commit_msg} ${contributor_text} in ${link}" >> $GITHUB_ENV
+              fi
+          done
 
           echo "" >> $GITHUB_ENV
           echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
