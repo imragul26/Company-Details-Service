@@ -23,27 +23,28 @@ jobs:
       - name: Generate formatted release notes
         id: generate_notes
         run: |
-          COMMITS=$(git log --pretty=format:"%H|%s" --no-merges --reverse ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+          COMMITS=$(git log --pretty=format:"%H|%s|%an" --no-merges --reverse ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
 
           echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
           echo "## What's Changed" >> $GITHUB_ENV
           echo "" >> $GITHUB_ENV
 
           echo "$COMMITS" | awk -F'|' -v repo="${{ github.repository }}" '{
-            link="https://github.com/" repo "/commit/" $1;
             commit_hash=substr($1, 1, 7);
             commit_msg=$2;
+            author=$3;
+            link="https://github.com/" repo "/commit/" $1;
             
             if (commit_msg ~ /^feat:/) {
-              print "* ✨ Feat: [`" commit_hash "`]" "(" link ") " substr(commit_msg, 6);
+              print "* ✨ Feat: " substr(commit_msg, 6) " by @" author " in " link;
             } else if (commit_msg ~ /^(fix|bug):/) {
-              print "* 🐛 Fix: [`" commit_hash "`]" "(" link ") " substr(commit_msg, 5);
+              print "* 🐛 Fix: " substr(commit_msg, 5) " by @" author " in " link;
             } else if (commit_msg ~ /^(chore|refactor|style):/) {
-              print "* 🛠️ Maintenance: [`" commit_hash "`]" "(" link ") " substr(commit_msg, 10);
+              print "* 🛠️ Maintenance: " substr(commit_msg, 10) " by @" author " in " link;
             } else if (commit_msg ~ /^docs:/) {
-              print "* 📚 Docs: [`" commit_hash "`]" "(" link ") " substr(commit_msg, 6);
+              print "* 📚 Docs: " substr(commit_msg, 6) " by @" author " in " link;
             } else {
-              print "* [`" commit_hash "`]" "(" link ") " commit_msg;
+              print "* " commit_msg " by @" author " in " link;
             }
           }' >> $GITHUB_ENV
 
