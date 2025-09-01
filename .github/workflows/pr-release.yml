@@ -11,7 +11,61 @@ jobs:
   create_release:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    permissions:name: Release from Merged PR
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+jobs:
+  create_release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
     permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate formatted release notes
+        id: generate_notes
+        run: |
+          COMMITS=$(git log --pretty=format:"%H|%s" --no-merges --reverse ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+          
+          # Check if there are any commits to process
+          if [ -z "$COMMITS" ]; then
+            echo "No commits to process for this pull request. Skipping release notes generation."
+            exit 0
+          fi
+          
+          echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
+          echo "## What's Changed" >> $GITHUB_ENV
+          echo "" >> $GITHUB_ENV
+
+          echo "$COMMITS" | awk -F'|' '{print "* [`" substr($1, 1, 7) "`](" "https://github.com/'${{ github.repository }}'/commit/" $1 ")" $2}' | grep 'feat:' | sed 's/feat:/* ✨ Feat:/' >> $GITHUB_ENV
+          echo "$COMMITS" | awk -F'|' '{print "* [`" substr($1, 1, 7) "`](" "https://github.com/'${{ github.repository }}'/commit/" $1 ")" $2}' | grep -E '^(fix|bug):' | sed -E 's/^(fix|bug):/* 🐛 Fix:/' >> $GITHUB_ENV
+          echo "$COMMITS" | awk -F'|' '{print "* [`" substr($1, 1, 7) "`](" "https://github.com/'${{ github.repository }}'/commit/" $1 ")" $2}' | grep -E '^(chore|refactor|style):' | sed -E 's/^(chore|refactor|style):/* 🛠️ Maintenance:/' >> $GITHUB_ENV
+          echo "$COMMITS" | awk -F'|' '{print "* [`" substr($1, 1, 7) "`](" "https://github.com/'${{ github.repository }}'/commit/" $1 ")" $2}' | grep 'docs:' | sed 's/docs:/* 📚 Docs:/' >> $GITHUB_ENV
+          
+          echo "" >> $GITHUB_ENV
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Create release tag
+        id: create_tag
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "release-${{ github.run_number }}"
+          name: "Release ${{ github.event.pull_request.title }}"
+          body: ${{ env.RELEASE_BODY }}
+          drop: true
       contents: write
       pull-requests: read
 
