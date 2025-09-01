@@ -1,10 +1,33 @@
-- name: Generate formatted release notes
+name: Release from Merged PR
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+jobs:
+  create_release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate formatted release notes
         id: generate_notes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           COMMITS=$(git log --pretty=format:"%H|%s" --no-merges --reverse ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
-
+          
           echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
           echo "## What's Changed" >> $GITHUB_ENV
           echo "" >> $GITHUB_ENV
@@ -12,7 +35,7 @@
           echo "$COMMITS" | while read -r line; do
               commit_hash=$(echo "$line" | cut -d'|' -f1)
               commit_msg=$(echo "$line" | cut -d'|' -f2)
-
+              
               # Use GitHub API to get the author's login
               author_login=$(curl -s -H "Authorization: token ${{ secrets.secrets.GITHUB_TOKEN }}" \
                                  "https://api.github.com/repos/${{ github.repository }}/commits/$commit_hash" | jq -r '.author.login')
@@ -42,3 +65,12 @@
           echo "" >> $GITHUB_ENV
           echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
+
+      - name: Create release tag
+        id: create_tag
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "release-${{ github.run_number }}"
+          name: "Release ${{ github.event.pull_request.title }}"
+          body: ${{ env.RELEASE_BODY }}
+          drop: true
